@@ -71,8 +71,15 @@ const MONTH_NAMES_FULL = [
 
 export default function Index() {
   const navigate = useNavigate()
-  const { monthlyStats, transactions, currentMonth, setCurrentMonth, categories, budgets } =
-    useFinance()
+  const {
+    monthlyStats,
+    transactions,
+    currentMonth,
+    setCurrentMonth,
+    categories,
+    budgets,
+    settings,
+  } = useFinance()
 
   // View Mode: 'monthly' | 'annual'
   const [viewMode, setViewMode] = useState<'monthly' | 'annual'>('monthly')
@@ -134,10 +141,16 @@ export default function Index() {
     let expense = 0
     const catExpenseMap = new Map<string, number>()
 
+    const includeCCPayments = settings.includeCreditCardPaymentsInTotals ?? false
+
     for (const t of yearTransactions) {
+      const isCC =
+        t.isCreditCardPayment || (t.description && t.description.toLowerCase().includes('fatura'))
+      const shouldExclude = !includeCCPayments && isCC && t.type === 'expense'
+
       if (t.type === 'income') {
         income += t.amount
-      } else {
+      } else if (!shouldExclude) {
         expense += t.amount
         const cId = t.categoryId || 'cat-outros'
         catExpenseMap.set(cId, (catExpenseMap.get(cId) || 0) + t.amount)
@@ -194,9 +207,14 @@ export default function Index() {
     return recentYears.map((yr) => {
       const yrStr = String(yr)
       const yrTxs = transactions.filter((t) => t.date.startsWith(yrStr))
+      const includeCC = settings.includeCreditCardPaymentsInTotals ?? false
       const income = yrTxs.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
       const expense = yrTxs
-        .filter((t) => t.type === 'expense')
+        .filter((t) => {
+          if (t.type !== 'expense') return false
+          if (!includeCC && t.isCreditCardPayment) return false
+          return true
+        })
         .reduce((sum, t) => sum + t.amount, 0)
       const balance = income - expense
 
@@ -217,8 +235,15 @@ export default function Index() {
       const mNum = idx + 1
       const mKey = `${selectedYear}-${String(mNum).padStart(2, '0')}`
       const mTxs = transactions.filter((t) => t.date.startsWith(mKey))
+      const includeCC = settings.includeCreditCardPaymentsInTotals ?? false
       const income = mTxs.filter((t) => t.type === 'income').reduce((acc, t) => acc + t.amount, 0)
-      const expense = mTxs.filter((t) => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
+      const expense = mTxs
+        .filter((t) => {
+          if (t.type !== 'expense') return false
+          if (!includeCC && t.isCreditCardPayment) return false
+          return true
+        })
+        .reduce((acc, t) => acc + t.amount, 0)
       const balance = income - expense
       const count = mTxs.length
 

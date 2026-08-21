@@ -17,6 +17,7 @@ export interface Transaction {
   categoryId: string | null
   needsReview: boolean // true when unclassified or suggestion needing manual confirmation
   suggestedCategoryId?: string | null
+  isCreditCardPayment?: boolean // flag for credit card invoice payment / received payment (potential duplication)
   notes?: string
   source?: 'manual' | 'spreadsheet_seed' | 'import_ofx' | 'import_csv' | 'import_xlsx'
   createdAt: string
@@ -57,6 +58,7 @@ export interface AppSettings {
   locale: string
   setupCompleted: boolean
   templateConfig?: AppTemplateConfig
+  includeCreditCardPaymentsInTotals?: boolean // default false (exclude from expenses to avoid double counting)
 }
 
 export const DEFAULT_CATEGORIES: Category[] = [
@@ -76,6 +78,20 @@ export const DEFAULT_CATEGORIES: Category[] = [
     name: 'Educação',
     color: '#EC4899',
     icon: 'GraduationCap',
+    isDefault: true,
+  },
+  {
+    id: 'cat-impostos',
+    name: 'Impostos',
+    color: '#D97706', // Amber / Dark orange
+    icon: 'Receipt',
+    isDefault: true,
+  },
+  {
+    id: 'cat-cartao',
+    name: 'Pagamento de Cartão',
+    color: '#6366F1', // Indigo / Purple
+    icon: 'CreditCard',
     isDefault: true,
   },
   { id: 'cat-outros', name: 'Outros', color: '#6B7280', icon: 'MoreHorizontal', isDefault: true },

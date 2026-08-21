@@ -13,6 +13,7 @@ import {
   Sparkles,
   Download,
   HelpCircle,
+  CreditCard,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -464,9 +465,18 @@ export default function Transactions() {
                             }}
                           />
                           <div>
-                            <span className="font-semibold text-slate-900 block">
-                              {tx.description}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-slate-900">{tx.description}</span>
+                              {tx.isCreditCardPayment && (
+                                <Badge
+                                  className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] gap-1 font-medium hover:bg-amber-100 py-0 px-1.5"
+                                  title="Pagamento de fatura: potencial duplicação de gastos individuais (ignorado do total de despesas do Dashboard por padrão)"
+                                >
+                                  <CreditCard className="w-2.5 h-2.5 text-amber-700" />
+                                  Fatura
+                                </Badge>
+                              )}
+                            </div>
                             {tx.notes && (
                               <span className="text-[11px] text-slate-500 block truncate">
                                 {tx.notes}

@@ -112,12 +112,56 @@ export function classifyByExactMatch(
  * Uses normalized strings for both transaction description and keywords,
  * providing accurate suggestions without accent/case mismatches.
  */
+/**
+ * Detects whether a description represents a credit card invoice payment / received payment.
+ * These transactions sum up the individual expenses already recorded and create duplication if counted as regular expense.
+ */
+export function isCreditCardPaymentDescription(description: string): boolean {
+  const norm = normalizeDescription(description)
+  if (!norm) return false
+
+  const ccKeywords = [
+    'pagamento recebido',
+    'pagamento de fatura',
+    'fatura cartao',
+    'pgto fatura',
+    'pagamento cartao',
+    'cartao de credito pagamento',
+    'cartao de credito pgto',
+    'pgto cartao',
+    'pagto fatura',
+    'pagto cartao',
+    'pag fatura',
+    'pgto fatura cartao',
+    'pagamento fatura cartao',
+    'fatura do cartao',
+    'liquidacao fatura',
+    'debito fatura cartao',
+  ]
+
+  return ccKeywords.some((kw) => {
+    const normKw = normalizeDescription(kw)
+    return norm.includes(normKw) || norm === normKw
+  })
+}
+
 export function suggestCategoryByKeywords(
   description: string,
   categories: Category[],
 ): string | null {
   const norm = normalizeDescription(description)
   if (!norm) return null
+
+  // If detected as credit card payment, prioritize Pagamento de Cartão
+  if (isCreditCardPaymentDescription(description)) {
+    const cardCat = categories.find(
+      (c) =>
+        c.id === 'cat-cartao' ||
+        c.name.toLowerCase().includes('cart') ||
+        c.name.toLowerCase().includes('fatura'),
+    )
+    if (cardCat) return cardCat.id
+  }
 
   const keywordMap: Record<string, string[]> = {
     'cat-alimentacao': [
@@ -296,6 +340,50 @@ export function suggestCategoryByKeywords(
       'cultura inglesa',
       'colegio',
     ],
+    'cat-impostos': [
+      'imposto',
+      'impostos',
+      'tributo',
+      'tributos',
+      'darf',
+      'das',
+      'mei',
+      'simples nacional',
+      'receita federal',
+      'ipva',
+      'iptu',
+      'irrf',
+      'irpf',
+      'fgts',
+      'inss',
+      'gps inss',
+      'taxa licen',
+      'dpvat',
+      'taxa judiciaria',
+      'guia darf',
+      'guia das',
+      'taxas e impostos',
+    ],
+    'cat-cartao': [
+      'pagamento recebido',
+      'pagamento de fatura',
+      'fatura cartao',
+      'pagamento cartao',
+      'cartao de credito pagamento',
+      'cartao de credito pgto',
+      'pgto fatura',
+      'pgto cartao',
+      'pagto fatura',
+      'pagto cartao',
+      'pgto fatura cartao',
+      'pag fatura',
+      'fatura nubank',
+      'fatura itaucard',
+      'fatura bradesco cartoes',
+      'fatura c6',
+      'fatura inter',
+      'fatura santander',
+    ],
   }
 
   // Find category that matches any known keyword
@@ -331,6 +419,12 @@ export function learnExactRule(
 ): LearnedMapping[] {
   const norm = normalizeDescription(description)
   if (!norm || !categoryId) return existingRules
+
+  // Special handling: Credit card invoice payments should NOT generate generic learned rules
+  // that might incorrectly classify other distinct transactions
+  if (isCreditCardPaymentDescription(description)) {
+    return existingRules
+  }
 
   const index = existingRules.findIndex(
     (r) => (r.normalizedDescription || normalizeDescription(r.exactDescription)) === norm,

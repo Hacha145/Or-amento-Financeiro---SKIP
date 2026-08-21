@@ -11,6 +11,10 @@ import {
   RefreshCw,
   Eye,
   Info,
+  CreditCard,
+  Files,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 import {
   Card,
@@ -44,6 +48,7 @@ import {
   suggestCategoryByKeywords,
   buildLearnedRulesMap,
   normalizeDescription,
+  isCreditCardPaymentDescription,
 } from '@/lib/learningEngine'
 import { useToast } from '@/hooks/use-toast'
 
@@ -51,6 +56,7 @@ type ImportStage = 'upload' | 'mapping' | 'preview' | 'success'
 
 interface PreviewItem {
   id: string
+  fileName: string
   date: string
   description: string
   amount: number
@@ -59,7 +65,15 @@ interface PreviewItem {
   suggestedCatId: string | null
   confidence: 'exact' | 'suggested' | 'none'
   selectedCatId: string
+  isCreditCardPayment: boolean
+  source: 'import_ofx' | 'import_csv'
   notes?: string
+}
+
+interface PendingMappingFile {
+  file: File
+  headers: string[]
+  rows: Record<string, any>[]
 }
 
 export default function ImportBank() {
@@ -68,11 +82,12 @@ export default function ImportBank() {
   const { categories, learnedRules, importTransactionsBatch, settings } = useFinance()
 
   const [stage, setStage] = useState<ImportStage>('upload')
-  const [fileType, setFileType] = useState<'ofx' | 'csv'>('csv')
-  const [fileName, setFileName] = useState('')
-  const [rawHeaders, setRawHeaders] = useState<string[]>([])
-  const [rawRows, setRawRows] = useState<Record<string, any>[]>([])
+  const [processedFileNames, setProcessedFileNames] = useState<string[]>([])
   const [previewItems, setPreviewItems] = useState<PreviewItem[]>([])
+
+  // State for files that require manual column mapping
+  const [pendingMappingQueue, setPendingMappingQueue] = useState<PendingMappingFile[]>([])
+  const [currentMappingFile, setCurrentMappingFile] = useState<PendingMappingFile | null>(null)
 
   // Column Mapping state for CSV
   const [dateCol, setDateCol] = useState('')
@@ -86,119 +101,189 @@ export default function ImportBank() {
     total: number
     autoExact: number
     suggested: number
-  }>({ total: 0, autoExact: 0, suggested: 0 })
+    ccCount: number
+  }>({ total: 0, autoExact: 0, suggested: 0, ccCount: 0 })
 
-  // Handle file drop/change
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>) => {
-    let file: File | null = null
+  // Process a single file and return preview items or return pending mapping
+  const readFileAsync = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve((e.target?.result as string) || '')
+      reader.onerror = (e) => reject(e)
+      reader.readAsText(file)
+    })
+  }
+
+  // Handle file drop/change with multiple file support
+  const handleFiles = async (
+    e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>,
+  ) => {
+    let files: File[] = []
 
     if ('dataTransfer' in e) {
       e.preventDefault()
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-        file = e.dataTransfer.files[0]
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        files = Array.from(e.dataTransfer.files)
       }
-    } else if (e.target.files && e.target.files[0]) {
-      file = e.target.files[0]
+    } else if (e.target.files && e.target.files.length > 0) {
+      files = Array.from(e.target.files)
     }
 
-    if (!file) return
+    if (files.length === 0) return
 
-    const fname = file.name
-    setFileName(fname)
+    const rulesMap = buildLearnedRulesMap(learnedRules)
+    const accumulatedItems: PreviewItem[] = [...previewItems]
+    const fileNames: string[] = [...processedFileNames]
+    const needsMappingFiles: PendingMappingFile[] = []
 
-    const isOfx = fname.toLowerCase().endsWith('.ofx')
+    for (const file of files) {
+      const fname = file.name
+      fileNames.push(fname)
+      const isOfx = fname.toLowerCase().endsWith('.ofx')
 
-    const reader = new FileReader()
+      try {
+        const text = await readFileAsync(file)
+        if (!text) continue
 
-    if (isOfx) {
-      setFileType('ofx')
-      reader.onload = (evt) => {
-        const text = evt.target?.result as string
-        if (!text) return
+        if (isOfx) {
+          const ofxTxs = parseOFX(text)
+          if (ofxTxs.length === 0) {
+            toast({
+              title: `Arquivo OFX vazio ou inválido`,
+              description: `Nenhuma transação encontrada em "${fname}".`,
+              variant: 'destructive',
+            })
+            continue
+          }
 
-        const ofxTxList = parseOFX(text)
-        if (ofxTxList.length === 0) {
-          toast({
-            title: 'Nenhuma transação encontrada',
-            description: 'O arquivo OFX parece vazio ou inválido.',
-            variant: 'destructive',
-          })
-          return
-        }
-
-        // Build preview items with EXACT MATCH rule engine
-        buildPreviewFromOFX(ofxTxList)
-        setStage('preview')
-      }
-      reader.readAsText(file)
-    } else {
-      setFileType('csv')
-      reader.onload = (evt) => {
-        const text = evt.target?.result as string
-        if (!text) return
-
-        const parsed = parseCSV(text)
-        if (parsed.headers.length === 0) {
-          toast({
-            title: 'Erro ao ler arquivo',
-            description: 'Não foi possível ler as colunas da planilha.',
-            variant: 'destructive',
-          })
-          return
-        }
-
-        setRawHeaders(parsed.headers)
-        setRawRows(parsed.rows)
-
-        // Check if user has a template config
-        const tmpl = settings.templateConfig?.columnMapping
-        const detected = autoDetectHeaders(parsed.headers)
-
-        const finalDate =
-          tmpl && parsed.headers.includes(tmpl.dateCol) ? tmpl.dateCol : detected.dateCol
-        const finalDesc =
-          tmpl && parsed.headers.includes(tmpl.descriptionCol)
-            ? tmpl.descriptionCol
-            : detected.descriptionCol
-        const finalAmount =
-          tmpl && parsed.headers.includes(tmpl.amountCol) ? tmpl.amountCol : detected.amountCol
-        const finalCat =
-          tmpl && tmpl.categoryCol && parsed.headers.includes(tmpl.categoryCol)
-            ? tmpl.categoryCol
-            : detected.categoryCol
-        const finalType =
-          tmpl && tmpl.typeCol && parsed.headers.includes(tmpl.typeCol)
-            ? tmpl.typeCol
-            : detected.typeCol
-
-        setDateCol(finalDate)
-        setDescCol(finalDesc)
-        setAmountCol(finalAmount)
-        setCatCol(finalCat)
-        setTypeCol(finalType)
-
-        // If all 3 critical columns are matched, go straight to preview, else show mapping
-        if (finalDate && finalDesc && finalAmount) {
-          buildPreviewFromCSV(parsed.rows, finalDate, finalDesc, finalAmount, finalCat, finalType)
-          setStage('preview')
+          const parsedItems = buildItemsFromOFX(ofxTxs, fname, rulesMap, accumulatedItems.length)
+          accumulatedItems.push(...parsedItems)
         } else {
-          setStage('mapping')
+          // CSV / XLSX text representation
+          const parsed = parseCSV(text)
+          if (parsed.headers.length === 0 || parsed.rows.length === 0) {
+            toast({
+              title: `Arquivo vazio ou inválido`,
+              description: `Não foi possível ler as colunas em "${fname}".`,
+              variant: 'destructive',
+            })
+            continue
+          }
+
+          // Check if user has template or auto-detection finds 3 core cols
+          const tmpl = settings.templateConfig?.columnMapping
+          const detected = autoDetectHeaders(parsed.headers)
+
+          const fDate =
+            tmpl && parsed.headers.includes(tmpl.dateCol) ? tmpl.dateCol : detected.dateCol
+          const fDesc =
+            tmpl && parsed.headers.includes(tmpl.descriptionCol)
+              ? tmpl.descriptionCol
+              : detected.descriptionCol
+          const fAmt =
+            tmpl && parsed.headers.includes(tmpl.amountCol) ? tmpl.amountCol : detected.amountCol
+          const fCat =
+            tmpl && tmpl.categoryCol && parsed.headers.includes(tmpl.categoryCol)
+              ? tmpl.categoryCol
+              : detected.categoryCol
+          const fType =
+            tmpl && tmpl.typeCol && parsed.headers.includes(tmpl.typeCol)
+              ? tmpl.typeCol
+              : detected.typeCol
+
+          if (fDate && fDesc && fAmt) {
+            const parsedItems = buildItemsFromCSV(
+              parsed.rows,
+              fname,
+              fDate,
+              fDesc,
+              fAmt,
+              fCat,
+              fType,
+              rulesMap,
+              accumulatedItems.length,
+            )
+            accumulatedItems.push(...parsedItems)
+          } else {
+            // Put into mapping queue
+            needsMappingFiles.push({
+              file,
+              headers: parsed.headers,
+              rows: parsed.rows,
+            })
+          }
         }
+      } catch (err) {
+        console.error('Error processing file', fname, err)
+        toast({
+          title: `Erro ao processar ${fname}`,
+          description: 'Ocorreu um erro ao ler o conteúdo do arquivo.',
+          variant: 'destructive',
+        })
       }
-      reader.readAsText(file)
+    }
+
+    setProcessedFileNames(fileNames)
+
+    if (needsMappingFiles.length > 0) {
+      const first = needsMappingFiles[0]
+      const remaining = needsMappingFiles.slice(1)
+      setPendingMappingQueue(remaining)
+      setCurrentMappingFile(first)
+
+      const detected = autoDetectHeaders(first.headers)
+      setDateCol(detected.dateCol)
+      setDescCol(detected.descriptionCol)
+      setAmountCol(detected.amountCol)
+      setCatCol(detected.categoryCol)
+      setTypeCol(detected.typeCol)
+
+      setPreviewItems(accumulatedItems)
+      setStage('mapping')
+    } else {
+      setPreviewItems(accumulatedItems)
+      updateSummaryStats(accumulatedItems)
+      if (accumulatedItems.length > 0) {
+        setStage('preview')
+      } else {
+        toast({
+          title: 'Nenhum lançamento extraído',
+          description: 'Verifique os arquivos enviados e tente novamente.',
+          variant: 'destructive',
+        })
+      }
     }
   }
 
-  // Build Preview from OFX items
-  const buildPreviewFromOFX = (
-    txs: { date: string; amount: number; type: 'expense' | 'income'; memo: string }[],
-  ) => {
+  // Update summary stats
+  const updateSummaryStats = (items: PreviewItem[]) => {
     let exactCount = 0
     let suggestCount = 0
-    const rulesMap = buildLearnedRulesMap(learnedRules)
+    let ccCount = 0
 
-    const items: PreviewItem[] = txs.map((tx, idx) => {
-      // EXACT MATCH FIRST (with intelligent normalization)
+    items.forEach((item) => {
+      if (item.confidence === 'exact') exactCount++
+      else if (item.confidence === 'suggested') suggestCount++
+      if (item.isCreditCardPayment) ccCount++
+    })
+
+    setImportResult({
+      total: items.length,
+      autoExact: exactCount,
+      suggested: suggestCount,
+      ccCount,
+    })
+  }
+
+  // Helper: Build preview items from OFX
+  const buildItemsFromOFX = (
+    txs: { date: string; amount: number; type: 'expense' | 'income'; memo: string }[],
+    fileName: string,
+    rulesMap: Map<string, any>,
+    offset: number,
+  ): PreviewItem[] => {
+    return txs.map((tx, idx) => {
+      const isCC = isCreditCardPaymentDescription(tx.memo)
       const match = classifyByExactMatch(tx.memo, rulesMap)
 
       let matchedCatId: string | null = null
@@ -210,20 +295,18 @@ export default function ImportBank() {
         matchedCatId = match.categoryId
         selectedCatId = match.categoryId
         confidence = 'exact'
-        exactCount++
       } else {
-        // KEYWORD SUGGESTION
         const sug = suggestCategoryByKeywords(tx.memo, categories)
         if (sug) {
           suggestedCatId = sug
           selectedCatId = sug
           confidence = 'suggested'
-          suggestCount++
         }
       }
 
       return {
-        id: `prev-${idx}`,
+        id: `prev-${offset + idx}-${Date.now()}`,
+        fileName,
         date: tx.date,
         description: tx.memo,
         amount: tx.amount,
@@ -232,31 +315,27 @@ export default function ImportBank() {
         suggestedCatId,
         confidence,
         selectedCatId,
+        isCreditCardPayment: isCC,
+        source: 'import_ofx',
       }
-    })
-
-    setPreviewItems(items)
-    setImportResult({
-      total: items.length,
-      autoExact: exactCount,
-      suggested: suggestCount,
     })
   }
 
-  // Build Preview from CSV rows
-  const buildPreviewFromCSV = (
+  // Helper: Build preview items from CSV
+  const buildItemsFromCSV = (
     rows: Record<string, any>[],
+    fileName: string,
     dCol: string,
     descC: string,
     amtC: string,
     cCol?: string,
     tCol?: string,
-  ) => {
-    let exactCount = 0
-    let suggestCount = 0
-    const rulesMap = buildLearnedRulesMap(learnedRules)
+    rulesMap?: Map<string, any>,
+    offset = 0,
+  ): PreviewItem[] => {
+    const map = rulesMap || buildLearnedRulesMap(learnedRules)
 
-    const items: PreviewItem[] = rows.map((r, idx) => {
+    return rows.map((r, idx) => {
       const rawDate = r[dCol]
       const rawDesc = r[descC] || 'Sem descrição'
       const rawAmt = r[amtC]
@@ -265,13 +344,15 @@ export default function ImportBank() {
 
       const date = parseDateToISO(rawDate)
       const { amount, type } = parseAmountAndType(rawAmt, rawType)
+      const cleanDesc = String(rawDesc).trim()
+      const isCC = isCreditCardPaymentDescription(cleanDesc)
 
       let matchedCatId: string | null = null
       let suggestedCatId: string | null = null
       let confidence: 'exact' | 'suggested' | 'none' = 'none'
       let selectedCatId = 'none'
 
-      // If spreadsheet has explicit category column
+      // If explicit category
       if (rawCatName && String(rawCatName).trim()) {
         const found = categories.find(
           (c) => c.name.toLowerCase() === String(rawCatName).trim().toLowerCase(),
@@ -280,52 +361,45 @@ export default function ImportBank() {
           matchedCatId = found.id
           selectedCatId = found.id
           confidence = 'exact'
-          exactCount++
         }
       } else {
-        // EXACT MATCH from history (with intelligent normalization)
-        const match = classifyByExactMatch(String(rawDesc), rulesMap)
+        // Check exact match
+        const match = classifyByExactMatch(cleanDesc, map)
         if (match.matched && match.categoryId) {
           matchedCatId = match.categoryId
           selectedCatId = match.categoryId
           confidence = 'exact'
-          exactCount++
         } else {
-          // KEYWORD SUGGESTION
-          const sug = suggestCategoryByKeywords(String(rawDesc), categories)
+          // Keyword suggestion
+          const sug = suggestCategoryByKeywords(cleanDesc, categories)
           if (sug) {
             suggestedCatId = sug
             selectedCatId = sug
             confidence = 'suggested'
-            suggestCount++
           }
         }
       }
 
       return {
-        id: `prev-${idx}`,
+        id: `prev-${offset + idx}-${Date.now()}`,
+        fileName,
         date,
-        description: String(rawDesc).trim(),
+        description: cleanDesc,
         amount,
         type,
         matchedCatId,
         suggestedCatId,
         confidence,
         selectedCatId,
+        isCreditCardPayment: isCC,
+        source: 'import_csv',
       }
-    })
-
-    setPreviewItems(items)
-    setImportResult({
-      total: items.length,
-      autoExact: exactCount,
-      suggested: suggestCount,
     })
   }
 
-  // Apply mapping and proceed to preview
+  // Apply mapping and proceed
   const handleApplyMapping = () => {
-    if (!dateCol || !descCol || !amountCol) {
+    if (!currentMappingFile || !dateCol || !descCol || !amountCol) {
       toast({
         title: 'Mapeamento incompleto',
         description: 'Mapeie ao menos Data, Descrição e Valor.',
@@ -334,8 +408,40 @@ export default function ImportBank() {
       return
     }
 
-    buildPreviewFromCSV(rawRows, dateCol, descCol, amountCol, catCol, typeCol)
-    setStage('preview')
+    const rulesMap = buildLearnedRulesMap(learnedRules)
+    const newItems = buildItemsFromCSV(
+      currentMappingFile.rows,
+      currentMappingFile.file.name,
+      dateCol,
+      descCol,
+      amountCol,
+      catCol,
+      typeCol,
+      rulesMap,
+      previewItems.length,
+    )
+
+    const updated = [...previewItems, ...newItems]
+    setPreviewItems(updated)
+
+    // Check if there are more files in the mapping queue
+    if (pendingMappingQueue.length > 0) {
+      const next = pendingMappingQueue[0]
+      const remaining = pendingMappingQueue.slice(1)
+      setPendingMappingQueue(remaining)
+      setCurrentMappingFile(next)
+
+      const detected = autoDetectHeaders(next.headers)
+      setDateCol(detected.dateCol)
+      setDescCol(detected.descriptionCol)
+      setAmountCol(detected.amountCol)
+      setCatCol(detected.categoryCol)
+      setTypeCol(detected.typeCol)
+    } else {
+      setCurrentMappingFile(null)
+      updateSummaryStats(updated)
+      setStage('preview')
+    }
   }
 
   // Change category of an item in the preview
@@ -353,6 +459,15 @@ export default function ImportBank() {
     )
   }
 
+  // Remove single item from preview
+  const handleRemovePreviewItem = (itemId: string) => {
+    setPreviewItems((prev) => {
+      const filtered = prev.filter((i) => i.id !== itemId)
+      updateSummaryStats(filtered)
+      return filtered
+    })
+  }
+
   // Final Commit to Finance Context
   const handleCommitImport = () => {
     const payload = previewItems.map((item) => {
@@ -363,7 +478,8 @@ export default function ImportBank() {
         amount: item.amount,
         type: item.type,
         categoryName: cat ? cat.name : undefined,
-        source: (fileType === 'ofx' ? 'import_ofx' : 'import_csv') as any,
+        isCreditCardPayment: item.isCreditCardPayment,
+        source: item.source,
       }
     })
 
@@ -372,6 +488,7 @@ export default function ImportBank() {
       total: res.imported,
       autoExact: res.autoClassified,
       suggested: res.pendingReview,
+      ccCount: previewItems.filter((i) => i.isCreditCardPayment).length,
     })
     setStage('success')
   }
@@ -381,11 +498,11 @@ export default function ImportBank() {
       {/* Title */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Importar Extrato Bancário
+          Importar Extratos Bancários
         </h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Envie extratos em OFX, CSV ou planilhas XLSX. O motor aprende regras exatas a cada
-          importação.
+          Selecione um ou múltiplos arquivos (OFX, CSV, XLSX) de uma só vez. O motor aprende regras
+          exatas e detecta automaticamente pagamentos de fatura de cartão.
         </p>
       </div>
 
@@ -397,35 +514,45 @@ export default function ImportBank() {
               <CardHeader>
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
                   <UploadCloud className="w-5 h-5 text-emerald-600" />
-                  Selecione o arquivo de extrato
+                  Selecione um ou múltiplos arquivos de extrato
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Formatos aceitos: <strong>.OFX</strong> (padrão de bancos brasileiros),{' '}
-                  <strong>.CSV</strong> ou <strong>.XLSX</strong>
+                  Formatos aceitos: <strong>.OFX</strong> (Itaú, Nubank, Bradesco, Inter, BB, etc.),{' '}
+                  <strong>.CSV</strong> ou <strong>.XLSX</strong>. Você pode selecionar vários
+                  arquivos de uma só vez.
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-4">
                 <div
                   onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleFile}
+                  onDrop={handleFiles}
                   className="border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/20 transition-all rounded-2xl p-10 text-center flex flex-col items-center justify-center cursor-pointer relative"
                 >
                   <input
                     type="file"
+                    multiple
                     accept=".ofx,.csv,.xlsx,.xls,.txt"
-                    onChange={handleFile}
+                    onChange={handleFiles}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                   <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
-                    <UploadCloud className="w-8 h-8" />
+                    <Files className="w-8 h-8" />
                   </div>
                   <p className="font-semibold text-slate-800 text-base">
-                    Arraste o arquivo do seu banco aqui
+                    Arraste seus extratos bancários aqui
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    ou clique para procurar no seu computador
+                    ou clique para procurar múltiplos arquivos no seu computador (segure Ctrl/Cmd)
                   </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] text-emerald-800 bg-emerald-100"
+                    >
+                      Seleção múltipla ativada
+                    </Badge>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -433,27 +560,47 @@ export default function ImportBank() {
 
           {/* Tips sidebar */}
           <div>
-            <Card className="border-slate-200/80 shadow-xs bg-slate-50/50">
-              <CardHeader className="pb-3">
+            <Card className="border-slate-200/80 shadow-xs bg-slate-50/50 space-y-4">
+              <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-emerald-600" />
-                  Como funciona o aprendizado:
+                  Recursos inteligentes:
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-xs text-slate-600 leading-relaxed">
-                <p>
-                  <strong>1. Normalização Inteligente:</strong> Se você classificou "POSTO
-                  IPIRANGA", variações como "Posto Ipiranga - Combustível", "POSTO IPIRANGA S.A." ou
-                  sem acentos casam perfeitamente.
-                </p>
-                <p>
-                  <strong>2. Regra Estrita sem Falsos Positivos:</strong> Descrições parciais ou
-                  diferentes continuam exigindo sua confirmação ou gerando sugestão de categoria.
-                </p>
-                <p>
-                  <strong>3. 100% Seguro e Rápido:</strong> Processamento instantâneo em O(1) e seus
-                  dados nunca saem do seu dispositivo.
-                </p>
+              <CardContent className="space-y-3 text-xs text-slate-600 leading-relaxed pt-0">
+                <div className="space-y-1">
+                  <strong className="text-slate-900 flex items-center gap-1">
+                    <Files className="w-3.5 h-3.5 text-emerald-600" />
+                    Múltiplos Extratos Acumulados:
+                  </strong>
+                  <p>
+                    Selecione todos os extratos bancários do mês de uma só vez (ex: conta corrente e
+                    cartões). Todas as transações serão consolidadas na prévia.
+                  </p>
+                </div>
+
+                <div className="space-y-1 pt-1 border-t border-slate-200/70">
+                  <strong className="text-slate-900 flex items-center gap-1">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-600" />
+                    Detecção de Pagamento de Fatura:
+                  </strong>
+                  <p>
+                    Lançamentos de "Pagamento recebido" ou "Pagamento de fatura" são detectados
+                    automaticamente e marcados para evitar que dupliquem suas despesas individuais
+                    já registradas.
+                  </p>
+                </div>
+
+                <div className="space-y-1 pt-1 border-t border-slate-200/70">
+                  <strong className="text-slate-900 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Motor de Regras O(1):
+                  </strong>
+                  <p>
+                    Normalização inteligente de nomes de estabelecimentos para classificação
+                    instantânea e segura no seu dispositivo.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -461,14 +608,19 @@ export default function ImportBank() {
       )}
 
       {/* STAGE 2: COLUMN MAPPING (for CSV with unmapped headers) */}
-      {stage === 'mapping' && (
+      {stage === 'mapping' && currentMappingFile && (
         <Card className="border-slate-200/80 shadow-xs">
           <CardHeader>
             <CardTitle className="text-lg font-bold">
-              Mapear Colunas do Arquivo ({fileName})
+              Mapear Colunas ({currentMappingFile.file.name})
             </CardTitle>
             <CardDescription className="text-xs">
-              Indique quais colunas correspondem à Data, Descrição e Valor
+              Indique quais colunas correspondem à Data, Descrição e Valor para este arquivo.
+              {pendingMappingQueue.length > 0 && (
+                <span className="text-emerald-700 font-semibold ml-1">
+                  ({pendingMappingQueue.length} outro(s) arquivo(s) aguardando mapeamento)
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
 
@@ -481,7 +633,7 @@ export default function ImportBank() {
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {rawHeaders.map((h) => (
+                    {currentMappingFile.headers.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
                       </SelectItem>
@@ -497,7 +649,7 @@ export default function ImportBank() {
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {rawHeaders.map((h) => (
+                    {currentMappingFile.headers.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
                       </SelectItem>
@@ -513,7 +665,7 @@ export default function ImportBank() {
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {rawHeaders.map((h) => (
+                    {currentMappingFile.headers.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
                       </SelectItem>
@@ -525,15 +677,24 @@ export default function ImportBank() {
           </CardContent>
 
           <CardFooter className="flex justify-between border-t pt-4">
-            <Button variant="outline" size="sm" onClick={() => setStage('upload')}>
-              Voltar
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStage('upload')
+                setPreviewItems([])
+                setProcessedFileNames([])
+                setPendingMappingQueue([])
+              }}
+            >
+              Cancelar
             </Button>
             <Button
               size="sm"
               onClick={handleApplyMapping}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              Continuar para Prévia &rarr;
+              Continuar &rarr;
             </Button>
           </CardFooter>
         </Card>
@@ -547,21 +708,30 @@ export default function ImportBank() {
               <div>
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
                   <Eye className="w-5 h-5 text-emerald-600" />
-                  Prévia de Classificação ({previewItems.length} lançamentos)
+                  Prévia Consolidada ({previewItems.length} lançamentos de{' '}
+                  {processedFileNames.length}{' '}
+                  {processedFileNames.length === 1 ? 'arquivo' : 'arquivos'})
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Revise como o sistema classificou automaticamente cada item antes de salvar.
+                  Revise as transações extraídas. Arquivos processados:{' '}
+                  <strong>{processedFileNames.join(', ')}</strong>
                 </CardDescription>
               </div>
 
               {/* Status summary badges */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-xs font-semibold">
                   {importResult.autoExact} correspondências exatas
                 </Badge>
                 {importResult.suggested > 0 && (
                   <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-xs font-semibold">
                     {importResult.suggested} sugestões
+                  </Badge>
+                )}
+                {importResult.ccCount > 0 && (
+                  <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-xs font-semibold gap-1">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-700" />
+                    {importResult.ccCount} pagamentos de fatura detectados
                   </Badge>
                 )}
               </div>
@@ -578,6 +748,7 @@ export default function ImportBank() {
                     <th className="p-3 w-28 text-right">Valor</th>
                     <th className="p-3 w-64">Classificação / Categoria</th>
                     <th className="p-3 w-36 text-center">Status</th>
+                    <th className="p-3 w-12 text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -588,14 +759,36 @@ export default function ImportBank() {
                       <tr
                         key={item.id}
                         className={`hover:bg-slate-50/70 transition-colors ${
-                          item.confidence === 'exact' ? 'bg-emerald-50/20' : ''
+                          item.isCreditCardPayment
+                            ? 'bg-amber-50/30'
+                            : item.confidence === 'exact'
+                              ? 'bg-emerald-50/20'
+                              : ''
                         }`}
                       >
                         <td className="p-3 text-slate-500 whitespace-nowrap font-medium">
                           {item.date.split('-').reverse().join('/')}
                         </td>
 
-                        <td className="p-3 font-medium text-slate-900">{item.description}</td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-slate-900">{item.description}</span>
+                            {item.isCreditCardPayment && (
+                              <Badge
+                                className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] gap-1 font-semibold hover:bg-amber-100"
+                                title="Pagamento de fatura: potencial duplicação de gastos individuais já lançados"
+                              >
+                                <CreditCard className="w-3 h-3 text-amber-700" />
+                                Fatura / Duplicação potencial
+                              </Badge>
+                            )}
+                            {processedFileNames.length > 1 && (
+                              <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                {item.fileName}
+                              </span>
+                            )}
+                          </div>
+                        </td>
 
                         <td className="p-3 text-right whitespace-nowrap">
                           <span
@@ -655,6 +848,18 @@ export default function ImportBank() {
                             </Badge>
                           )}
                         </td>
+
+                        <td className="p-3 text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            onClick={() => handleRemovePreviewItem(item.id)}
+                            title="Remover da prévia"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </td>
                       </tr>
                     )
                   })}
@@ -667,10 +872,14 @@ export default function ImportBank() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setStage('upload')}
+              onClick={() => {
+                setStage('upload')
+                setPreviewItems([])
+                setProcessedFileNames([])
+              }}
               className="text-xs"
             >
-              Cancelar e escolher outro arquivo
+              Cancelar e escolher outros arquivos
             </Button>
             <Button
               size="sm"
@@ -699,12 +908,18 @@ export default function ImportBank() {
           </CardHeader>
 
           <CardContent className="space-y-4 text-xs text-slate-600">
-            <div className="bg-slate-50 border rounded-xl p-4 text-left space-y-1.5">
-              <p className="font-semibold text-slate-900 text-sm">Resumo do aprendizado:</p>
+            <div className="bg-slate-50 border rounded-xl p-4 text-left space-y-2">
+              <p className="font-semibold text-slate-900 text-sm">Resumo do processamento:</p>
               <p>
                 • <strong>{importResult.autoExact}</strong> transações reconhecidas automaticamente
                 por histórico exato.
               </p>
+              {importResult.ccCount > 0 && (
+                <p className="text-amber-800">
+                  • <strong>{importResult.ccCount}</strong> pagamentos de fatura foram marcados e
+                  excluídos dos totais de despesas por padrão para evitar duplicação.
+                </p>
+              )}
               {importResult.suggested > 0 && (
                 <p className="text-amber-700">
                   • <strong>{importResult.suggested}</strong> lançamentos novos aguardam sua revisão
@@ -715,8 +930,16 @@ export default function ImportBank() {
           </CardContent>
 
           <CardFooter className="flex justify-center gap-3">
-            <Button variant="outline" onClick={() => setStage('upload')} className="text-xs">
-              Importar outro arquivo
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStage('upload')
+                setPreviewItems([])
+                setProcessedFileNames([])
+              }}
+              className="text-xs"
+            >
+              Importar outros arquivos
             </Button>
             <Button
               onClick={() => navigate('/transacoes')}

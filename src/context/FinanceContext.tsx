@@ -30,6 +30,7 @@ import {
   suggestCategoryByKeywords,
   learnExactRule,
   buildLearnedRulesMap,
+  isCreditCardPaymentDescription,
 } from '../lib/learningEngine'
 
 interface FinanceContextType {
@@ -97,9 +98,9 @@ interface FinanceContextType {
       categoryName?: string
       notes?: string
       source?: Transaction['source']
+      isCreditCardPayment?: boolean
     }[],
   ) => { imported: number; autoClassified: number; pendingReview: number }
-
   findCategoryByName: (name: string) => Category | undefined
   findOrCreateCategory: (name: string) => Category
 
@@ -276,8 +277,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addTransaction = useCallback(
     (tx: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>): Transaction => {
       const now = new Date().toISOString()
+      const isCC =
+        tx.isCreditCardPayment !== undefined
+          ? tx.isCreditCardPayment
+          : isCreditCardPaymentDescription(tx.description)
+
       const newTx: Transaction = {
         ...tx,
+        isCreditCardPayment: isCC,
         id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         createdAt: now,
         updatedAt: now,
@@ -303,7 +310,21 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const updated = transactions.map((t) => {
         if (t.id === id) {
-          const merged = { ...t, ...updates, updatedAt: new Date().toISOString() }
+          const isCC =
+            updates.isCreditCardPayment !== undefined
+              ? updates.isCreditCardPayment
+              : updates.description
+                ? isCreditCardPaymentDescription(updates.description)
+                : t.isCreditCardPayment !== undefined
+                  ? t.isCreditCardPayment
+                  : isCreditCardPaymentDescription(t.description)
+
+          const merged = {
+            ...t,
+            ...updates,
+            isCreditCardPayment: isCC,
+            updatedAt: new Date().toISOString(),
+          }
 
           // If category changed and confirmed
           if (merged.categoryId && !merged.needsReview && updates.categoryId) {
@@ -399,6 +420,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         type: 'expense' | 'income'
         categoryName?: string
         notes?: string
+        isCreditCardPayment?: boolean
         source?: Transaction['source']
       }[],
     ) => {
@@ -414,6 +436,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         let finalCategoryId: string | null = null
         let needsReview = false
         let suggestedCategoryId: string | null = null
+        const isCC =
+          item.isCreditCardPayment !== undefined
+            ? item.isCreditCardPayment
+            : isCreditCardPaymentDescription(item.description)
 
         // 1. If categoryName is explicitly provided (e.g. from seed template spreadsheet)
         if (item.categoryName && item.categoryName.trim()) {
@@ -465,6 +491,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           categoryId: finalCategoryId,
           needsReview,
           suggestedCategoryId,
+          isCreditCardPayment: isCC,
           notes: item.notes || '',
           source: item.source || 'import_csv',
           createdAt: now,
@@ -500,12 +527,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     clearAllData()
     setCategoriesState(DEFAULT_CATEGORIES)
     setTransactionsState([])
-    setBudgetsState([])
+    setBudgetsState([
+      { categoryId: 'cat-alimentacao', monthlyLimit: 1500 },
+      { categoryId: 'cat-transporte', monthlyLimit: 600 },
+      { categoryId: 'cat-moradia', monthlyLimit: 2200 },
+      { categoryId: 'cat-saude', monthlyLimit: 400 },
+      { categoryId: 'cat-lazer', monthlyLimit: 500 },
+    ])
     setLearnedRulesState([])
     setSettingsState({
       currency: 'BRL',
       locale: 'pt-BR',
       setupCompleted: false,
+      includeCreditCardPaymentsInTotals: false,
     })
   }, [])
 
@@ -528,6 +562,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Monthly stats calculations
   const monthlyStats = useMemo(() => {
     const monthTransactions = transactions.filter((t) => t.date.startsWith(currentMonth))
+    const includeCCPayments = settings.includeCreditCardPaymentsInTotals ?? false
 
     let income = 0
     let expense = 0
@@ -538,15 +573,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (t.needsReview) {
         pendingReviewCount++
       }
+
+      // If credit card payment and excluded by setting, skip from expense/totals to prevent double counting
+      const isCC = t.isCreditCardPayment || isCreditCardPaymentDescription(t.description)
+      const shouldExcludeExpense = !includeCCPayments && isCC && t.type === 'expense'
+
       if (t.type === 'income') {
         income += t.amount
-      } else {
+      } else if (!shouldExcludeExpense) {
         expense += t.amount
         const cId = t.categoryId || 'cat-outros'
         catExpenseMap.set(cId, (catExpenseMap.get(cId) || 0) + t.amount)
       }
     }
-
     const balance = income - expense
     const savingsRate = income > 0 ? Math.max(0, ((income - expense) / income) * 100) : 0
 
@@ -595,7 +634,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const mTx = transactions.filter((t) => t.date.startsWith(mKey))
       const mIncome = mTx.filter((t) => t.type === 'income').reduce((acc, t) => acc + t.amount, 0)
-      const mExpense = mTx.filter((t) => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
+      const mExpense = mTx
+        .filter((t) => {
+          if (t.type !== 'expense') return false
+          if (
+            !settings.includeCreditCardPaymentsInTotals &&
+            (t.isCreditCardPayment || isCreditCardPaymentDescription(t.description))
+          ) {
+            return false
+          }
+          return true
+        })
+        .reduce((acc, t) => acc + t.amount, 0)
 
       last6MonthsHistory.push({
         monthKey: mKey,
@@ -633,7 +683,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       last6MonthsHistory,
       budgetProgress,
     }
-  }, [transactions, currentMonth, categories, budgets])
+  }, [transactions, currentMonth, categories, budgets, settings.includeCreditCardPaymentsInTotals])
 
   return (
     <FinanceContext.Provider

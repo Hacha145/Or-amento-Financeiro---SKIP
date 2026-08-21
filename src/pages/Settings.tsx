@@ -12,7 +12,9 @@ import {
   Sparkles,
   ShieldCheck,
   Table,
+  CreditCard,
 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import {
   Card,
   CardContent,
@@ -48,6 +50,7 @@ export default function Settings() {
     restoreBackup,
     loadDemoData,
     resetData,
+    updateSettings,
   } = useFinance()
 
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
@@ -151,9 +154,65 @@ export default function Settings() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">Configurações & Backup</h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Gerencie o formato da sua planilha modelo, exportações e cópias de segurança
+          Gerencie o formato da sua planilha modelo, regras de contabilidade e cópias de segurança
         </p>
       </div>
+
+      {/* Duplication & Credit Card Settings */}
+      <Card className="border-slate-200/80 shadow-xs">
+        <CardHeader className="pb-3 border-b">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-amber-100 text-amber-800">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Fatura de Cartão & Dupla Contagem
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Controle como os pagamentos de fatura são contabilizados nos totais de despesas
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-center justify-between gap-4 p-3.5 bg-slate-50 rounded-xl border">
+            <div className="space-y-1 pr-4">
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor="cc-toggle"
+                  className="text-xs font-semibold text-slate-900 cursor-pointer"
+                >
+                  Incluir pagamento de fatura nas despesas do Dashboard
+                </Label>
+                <Badge variant="outline" className="text-[10px] text-slate-500">
+                  Padrão: Desativado
+                </Badge>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Quando <strong>desativado</strong> (recomendado), pagamentos de fatura ("Pagamento
+                recebido", "Pgto fatura", etc.) são marcados e excluídos da soma de despesas para
+                evitar duplicar os gastos que já foram lançados individualmente.
+              </p>
+            </div>
+
+            <Switch
+              id="cc-toggle"
+              checked={settings.includeCreditCardPaymentsInTotals ?? false}
+              onCheckedChange={(val) => {
+                updateSettings({ includeCreditCardPaymentsInTotals: val })
+                toast({
+                  title: val ? 'Inclusão ativada' : 'Exclusão de fatura ativada',
+                  description: val
+                    ? 'Pagamentos de fatura agora serão somados aos totais de despesa.'
+                    : 'Pagamentos de fatura agora são ignorados nos totais para evitar dupla contagem.',
+                })
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Template Configuration Section */}
       <Card className="border-slate-200/80 shadow-xs">

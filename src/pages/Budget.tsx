@@ -42,8 +42,15 @@ import { useToast } from '@/hooks/use-toast'
 
 export default function Budget() {
   const { toast } = useToast()
-  const { budgets, categories, transactions, currentMonth, setBudgetLimit, removeBudgetLimit } =
-    useFinance()
+  const {
+    budgets,
+    categories,
+    transactions,
+    currentMonth,
+    setBudgetLimit,
+    removeBudgetLimit,
+    settings,
+  } = useFinance()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedCatId, setSelectedCatId] = useState<string>('')
@@ -54,13 +61,15 @@ export default function Budget() {
     const monthTxs = transactions.filter(
       (t) => t.date.startsWith(currentMonth) && t.type === 'expense',
     )
+    const includeCC = settings.includeCreditCardPaymentsInTotals ?? false
     const map = new Map<string, number>()
     for (const tx of monthTxs) {
+      if (!includeCC && tx.isCreditCardPayment) continue
       const cId = tx.categoryId || 'cat-outros'
       map.set(cId, (map.get(cId) || 0) + tx.amount)
     }
     return map
-  }, [transactions, currentMonth])
+  }, [transactions, currentMonth, settings.includeCreditCardPaymentsInTotals])
 
   // Total budget vs Total actual expenses
   const { totalBudget, totalSpent } = useMemo(() => {

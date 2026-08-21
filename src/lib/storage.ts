@@ -20,7 +20,13 @@ const STORAGE_KEYS = {
 export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return {
+        includeCreditCardPaymentsInTotals: false,
+        ...parsed,
+      }
+    }
   } catch (e) {
     console.error('Error loading settings from localStorage', e)
   }
@@ -28,6 +34,7 @@ export function loadSettings(): AppSettings {
     currency: 'BRL',
     locale: 'pt-BR',
     setupCompleted: false,
+    includeCreditCardPaymentsInTotals: false,
   }
 }
 
@@ -44,7 +51,25 @@ export function loadCategories(): Category[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CATEGORIES)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Ensure default categories like Impostos and Pagamento de Cartão exist if missing
+        const existingIds = new Set(parsed.map((c: Category) => c.id))
+        const existingNames = new Set(parsed.map((c: Category) => c.name.toLowerCase().trim()))
+        let hasNew = false
+        const merged = [...parsed]
+
+        DEFAULT_CATEGORIES.forEach((defCat) => {
+          if (!existingIds.has(defCat.id) && !existingNames.has(defCat.name.toLowerCase().trim())) {
+            merged.push(defCat)
+            hasNew = true
+          }
+        })
+
+        if (hasNew) {
+          saveCategories(merged)
+        }
+        return merged
+      }
     }
   } catch (e) {
     console.error('Error loading categories', e)
