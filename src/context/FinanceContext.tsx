@@ -532,6 +532,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       { categoryId: 'cat-transporte', monthlyLimit: 600 },
       { categoryId: 'cat-moradia', monthlyLimit: 2200 },
       { categoryId: 'cat-saude', monthlyLimit: 400 },
+      { categoryId: 'cat-assinaturas', monthlyLimit: 200 },
       { categoryId: 'cat-lazer', monthlyLimit: 500 },
     ])
     setLearnedRulesState([])

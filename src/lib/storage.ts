@@ -121,6 +121,7 @@ export function loadBudgets(): BudgetLimit[] {
     { categoryId: 'cat-transporte', monthlyLimit: 600 },
     { categoryId: 'cat-moradia', monthlyLimit: 2200 },
     { categoryId: 'cat-saude', monthlyLimit: 400 },
+    { categoryId: 'cat-assinaturas', monthlyLimit: 200 },
     { categoryId: 'cat-lazer', monthlyLimit: 500 },
   ]
 }
@@ -253,7 +254,7 @@ export function generateSampleData(): {
       description: 'NETFLIX BRASIL',
       amount: 55.9,
       type: 'expense',
-      categoryId: 'cat-lazer',
+      categoryId: 'cat-assinaturas',
       needsReview: false,
       notes: 'Assinatura streaming',
       source: 'spreadsheet_seed',
@@ -321,6 +322,7 @@ export function generateSampleData(): {
     { categoryId: 'cat-transporte', monthlyLimit: 400 },
     { categoryId: 'cat-moradia', monthlyLimit: 1500 },
     { categoryId: 'cat-saude', monthlyLimit: 300 },
+    { categoryId: 'cat-assinaturas', monthlyLimit: 150 },
     { categoryId: 'cat-lazer', monthlyLimit: 250 },
   ]
 
@@ -356,7 +358,7 @@ export function generateSampleData(): {
     {
       exactDescription: 'NETFLIX BRASIL',
       normalizedDescription: normalizeDescription('NETFLIX BRASIL'),
-      categoryId: 'cat-lazer',
+      categoryId: 'cat-assinaturas',
       confirmCount: 1,
       lastUsedAt: new Date().toISOString(),
     },

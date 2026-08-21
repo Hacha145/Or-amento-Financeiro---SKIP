@@ -271,6 +271,10 @@ export function suggestCategoryByKeywords(
       'sao paulo drogaria',
       'panvel',
       'medico',
+      'medica',
+      'medicamento',
+      'medicina',
+      'medic',
       'consulta',
       'hospital',
       'laboratorio',
@@ -289,17 +293,35 @@ export function suggestCategoryByKeywords(
       'clinica',
       'fisioterapia',
     ],
-    'cat-lazer': [
+    'cat-assinaturas': [
+      'assinatura',
       'netflix',
       'spotify',
+      'amazon prime',
+      'disney+',
+      'disney',
+      'hbo max',
+      'hbomax',
+      'max',
+      'streaming',
+      'apple music',
+      'google one',
+      'google drive',
+      'dropbox',
+      'youtube premium',
+      'onlyfans',
+      'linkedin premium',
+      'kindle unlimited',
+      'audible',
+      'plano',
+      'mensalidade',
+      'recorrencia',
+      'assinante',
+    ],
+    'cat-lazer': [
       'cinema',
       'cinemark',
       'cinepolis',
-      'hbomax',
-      'max',
-      'amazon prime',
-      'prime video',
-      'disney',
       'star plus',
       'globo play',
       'globoplay',
@@ -386,21 +408,80 @@ export function suggestCategoryByKeywords(
     ],
   }
 
+  const descWords = norm.split(' ').filter((w) => w.length > 0)
+  const MIN_PREFIX_LEN = 4
+
+  // Helper to match a keyword candidate against description and its words
+  const matchesKeyword = (normKw: string): boolean => {
+    if (!normKw) return false
+
+    // 1. Direct substring or identical match
+    if (norm.includes(normKw)) {
+      return true
+    }
+
+    // 2. Prefix matching for truncated/cut words (minimum 4 characters)
+    // Check multi-word keyword tokens or single keyword
+    const kwWords = normKw.split(' ').filter((w) => w.length > 0)
+
+    for (const dWord of descWords) {
+      // Check against individual words of keyword or single-word keyword
+      for (const kWord of kwWords) {
+        // Case A: word in description is prefix of keyword word (e.g. "medic" is prefix of "medica" / "medico" / "medicamento")
+        if (
+          dWord.length >= MIN_PREFIX_LEN &&
+          kWord.length > dWord.length &&
+          kWord.startsWith(dWord)
+        ) {
+          return true
+        }
+
+        // Case B: keyword word is prefix of word in description (e.g. keyword "medic" is prefix of "medicamento" in description)
+        if (
+          kWord.length >= MIN_PREFIX_LEN &&
+          dWord.length > kWord.length &&
+          dWord.startsWith(kWord)
+        ) {
+          return true
+        }
+      }
+
+      // Also check whole normalized keyword against dWord if keyword has no spaces
+      if (kwWords.length === 1) {
+        if (
+          dWord.length >= MIN_PREFIX_LEN &&
+          normKw.length > dWord.length &&
+          normKw.startsWith(dWord)
+        ) {
+          return true
+        }
+        if (
+          normKw.length >= MIN_PREFIX_LEN &&
+          dWord.length > normKw.length &&
+          dWord.startsWith(normKw)
+        ) {
+          return true
+        }
+      }
+    }
+
+    return false
+  }
+
   // Find category that matches any known keyword
   for (const cat of categories) {
     const catId = cat.id
     const keywords = keywordMap[catId] || []
     for (const kw of keywords) {
       const normKw = normalizeDescription(kw)
-      // Check word boundary or substring match with normalized keyword
-      if (norm.includes(normKw)) {
+      if (matchesKeyword(normKw)) {
         return cat.id
       }
     }
 
     // Also check category name itself as keyword
     const catNameNorm = normalizeDescription(cat.name)
-    if (catNameNorm.length > 3 && norm.includes(catNameNorm)) {
+    if (catNameNorm.length >= MIN_PREFIX_LEN && matchesKeyword(catNameNorm)) {
       return cat.id
     }
   }
