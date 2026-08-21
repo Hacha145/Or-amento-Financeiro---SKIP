@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dialog'
 import { useFinance } from '@/context/FinanceContext'
 import { PALETTE_COLORS, Category } from '@/types/finance'
+import { normalizeDescription } from '@/lib/learningEngine'
 import { useToast } from '@/hooks/use-toast'
 
 export default function Categories() {
@@ -242,23 +243,29 @@ export default function Categories() {
               Histórico de Regras Exatas Aprendidas ({learnedRules.length})
             </CardTitle>
             <CardDescription className="text-xs">
-              Sempre que uma transação tiver exatamente o mesmo texto, ela será classificada sem
-              precisar de confirmação.
+              O motor utiliza normalização inteligente (sem distinção de maiúsculas/minúsculas,
+              acentos ou pontuações) para classificar lançamentos automaticamente sem falsos
+              positivos.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="p-0 max-h-60 overflow-y-auto">
+          <CardContent className="p-0 max-h-80 overflow-y-auto">
             <div className="divide-y divide-slate-100 text-xs">
               {learnedRules.map((rule, idx) => {
                 const cat = categories.find((c) => c.id === rule.categoryId)
+                const normKey =
+                  rule.normalizedDescription || normalizeDescription(rule.exactDescription)
                 return (
                   <div
                     key={idx}
-                    className="p-3 flex items-center justify-between hover:bg-slate-50/70"
+                    className="p-3 flex items-center justify-between hover:bg-slate-50/70 gap-4"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="font-medium text-slate-900 truncate">
                         {rule.exactDescription}
+                      </span>
+                      <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded w-fit">
+                        chave: "{normKey}"
                       </span>
                     </div>
 

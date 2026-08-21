@@ -39,7 +39,12 @@ import {
   parseAmountAndType,
   formatCurrencyBRL,
 } from '@/lib/parsers'
-import { classifyByExactMatch, suggestCategoryByKeywords } from '@/lib/learningEngine'
+import {
+  classifyByExactMatch,
+  suggestCategoryByKeywords,
+  buildLearnedRulesMap,
+  normalizeDescription,
+} from '@/lib/learningEngine'
 import { useToast } from '@/hooks/use-toast'
 
 type ImportStage = 'upload' | 'mapping' | 'preview' | 'success'
@@ -190,10 +195,11 @@ export default function ImportBank() {
   ) => {
     let exactCount = 0
     let suggestCount = 0
+    const rulesMap = buildLearnedRulesMap(learnedRules)
 
     const items: PreviewItem[] = txs.map((tx, idx) => {
-      // EXACT MATCH FIRST
-      const match = classifyByExactMatch(tx.memo, learnedRules)
+      // EXACT MATCH FIRST (with intelligent normalization)
+      const match = classifyByExactMatch(tx.memo, rulesMap)
 
       let matchedCatId: string | null = null
       let suggestedCatId: string | null = null
@@ -248,6 +254,7 @@ export default function ImportBank() {
   ) => {
     let exactCount = 0
     let suggestCount = 0
+    const rulesMap = buildLearnedRulesMap(learnedRules)
 
     const items: PreviewItem[] = rows.map((r, idx) => {
       const rawDate = r[dCol]
@@ -276,8 +283,8 @@ export default function ImportBank() {
           exactCount++
         }
       } else {
-        // EXACT MATCH from history
-        const match = classifyByExactMatch(String(rawDesc), learnedRules)
+        // EXACT MATCH from history (with intelligent normalization)
+        const match = classifyByExactMatch(String(rawDesc), rulesMap)
         if (match.matched && match.categoryId) {
           matchedCatId = match.categoryId
           selectedCatId = match.categoryId
@@ -435,18 +442,17 @@ export default function ImportBank() {
               </CardHeader>
               <CardContent className="space-y-3 text-xs text-slate-600 leading-relaxed">
                 <p>
-                  <strong>1. Correspondência Exata:</strong> Se você já classificou "POSTO IPIRANGA"
-                  antes, o app categoriza automaticamente apenas lançamentos com o mesmo texto
-                  exato.
+                  <strong>1. Normalização Inteligente:</strong> Se você classificou "POSTO
+                  IPIRANGA", variações como "Posto Ipiranga - Combustível", "POSTO IPIRANGA S.A." ou
+                  sem acentos casam perfeitamente.
                 </p>
                 <p>
-                  <strong>2. Sem suposições cegas:</strong> Descrições parciais (ex: apenas
-                  "IPIRANGA") não serão classificadas sozinhas — o sistema sugere mas solicita sua
-                  confirmação.
+                  <strong>2. Regra Estrita sem Falsos Positivos:</strong> Descrições parciais ou
+                  diferentes continuam exigindo sua confirmação ou gerando sugestão de categoria.
                 </p>
                 <p>
-                  <strong>3. 100% Offline:</strong> Seus dados financeiros e extratos nunca saem do
-                  seu dispositivo.
+                  <strong>3. 100% Seguro e Rápido:</strong> Processamento instantâneo em O(1) e seus
+                  dados nunca saem do seu dispositivo.
                 </p>
               </CardContent>
             </Card>
@@ -629,16 +635,23 @@ export default function ImportBank() {
 
                         <td className="p-3 text-center whitespace-nowrap">
                           {item.confidence === 'exact' ? (
-                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Exato
+                            <Badge
+                              className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1 font-semibold"
+                              title="Reconhecido por correspondência exata inteligente"
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Correspondência
+                              exata
                             </Badge>
                           ) : item.confidence === 'suggested' ? (
-                            <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] gap-1">
-                              <Sparkles className="w-3 h-3 text-amber-600" /> Sugerido
+                            <Badge
+                              className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] gap-1 font-semibold"
+                              title="Sugestão automática por palavra-chave"
+                            >
+                              <Sparkles className="w-3 h-3 text-amber-600" /> Sugestão
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-[10px] text-slate-500">
-                              Pendente
+                              Não identificado
                             </Badge>
                           )}
                         </td>

@@ -7,6 +7,7 @@ import {
   DEFAULT_CATEGORIES,
   PALETTE_COLORS,
 } from '../types/finance'
+import { sanitizeLearnedRules, normalizeDescription } from './learningEngine'
 
 const STORAGE_KEYS = {
   TRANSACTIONS: 'orcamento_transactions_v1',
@@ -112,7 +113,16 @@ export function loadLearnedRules(): LearnedMapping[] {
     const raw = localStorage.getItem(STORAGE_KEYS.LEARNED_RULES)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
+      if (Array.isArray(parsed)) {
+        // Ensure backward compatibility: populate normalizedDescription for all legacy rules
+        const sanitized = sanitizeLearnedRules(parsed)
+        // If some rules lacked normalizedDescription, resave sanitized version
+        const needsResave = parsed.some((r: any) => !r.normalizedDescription)
+        if (needsResave) {
+          saveLearnedRules(sanitized)
+        }
+        return sanitized
+      }
     }
   } catch (e) {
     console.error('Error loading learned rules', e)
@@ -122,7 +132,8 @@ export function loadLearnedRules(): LearnedMapping[] {
 
 export function saveLearnedRules(rules: LearnedMapping[]): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.LEARNED_RULES, JSON.stringify(rules))
+    const sanitized = sanitizeLearnedRules(rules)
+    localStorage.setItem(STORAGE_KEYS.LEARNED_RULES, JSON.stringify(sanitized))
   } catch (e) {
     console.error('Error saving learned rules', e)
   }
@@ -291,36 +302,42 @@ export function generateSampleData(): {
   const rules: LearnedMapping[] = [
     {
       exactDescription: 'PÃO DE AÇÚCAR SUPERMERCADO',
+      normalizedDescription: normalizeDescription('PÃO DE AÇÚCAR SUPERMERCADO'),
       categoryId: 'cat-alimentacao',
       confirmCount: 2,
       lastUsedAt: new Date().toISOString(),
     },
     {
       exactDescription: 'POSTO IPIRANGA COMBUSTÍVEL',
+      normalizedDescription: normalizeDescription('POSTO IPIRANGA COMBUSTÍVEL'),
       categoryId: 'cat-transporte',
       confirmCount: 1,
       lastUsedAt: new Date().toISOString(),
     },
     {
       exactDescription: 'CONDOMÍNIO RESIDENCIAL JARDINS',
+      normalizedDescription: normalizeDescription('CONDOMÍNIO RESIDENCIAL JARDINS'),
       categoryId: 'cat-moradia',
       confirmCount: 1,
       lastUsedAt: new Date().toISOString(),
     },
     {
       exactDescription: 'DROGASIL FARMÁCIA',
+      normalizedDescription: normalizeDescription('DROGASIL FARMÁCIA'),
       categoryId: 'cat-saude',
       confirmCount: 1,
       lastUsedAt: new Date().toISOString(),
     },
     {
       exactDescription: 'NETFLIX BRASIL',
+      normalizedDescription: normalizeDescription('NETFLIX BRASIL'),
       categoryId: 'cat-lazer',
       confirmCount: 1,
       lastUsedAt: new Date().toISOString(),
     },
     {
       exactDescription: 'UBER *TRIP RIDE',
+      normalizedDescription: normalizeDescription('UBER *TRIP RIDE'),
       categoryId: 'cat-transporte',
       confirmCount: 1,
       lastUsedAt: new Date().toISOString(),

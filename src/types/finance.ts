@@ -39,7 +39,8 @@ export interface ColumnMapping {
 }
 
 export interface LearnedMapping {
-  exactDescription: string // exact trimmed normalized string (case-sensitive or uppercase comparison)
+  exactDescription: string // original description trimmed for display
+  normalizedDescription?: string // intelligent normalized string for O(1) matching
   categoryId: string
   confirmCount: number
   lastUsedAt: string

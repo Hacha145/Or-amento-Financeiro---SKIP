@@ -39,6 +39,7 @@ import { MonthSelector } from '@/components/MonthSelector'
 import { useFinance } from '@/context/FinanceContext'
 import { formatCurrencyBRL, exportTransactionsToCSV } from '@/lib/parsers'
 import { Transaction } from '@/types/finance'
+import { normalizeDescription } from '@/lib/learningEngine'
 import { useToast } from '@/hooks/use-toast'
 
 export default function Transactions() {
@@ -158,7 +159,7 @@ export default function Transactions() {
     classifyAndConfirmTransaction(tx.id, catId)
     toast({
       title: 'Classificação confirmada!',
-      description: `Regra memorizada: "${tx.description}" agora é classificado automaticamente.`,
+      description: `Regra memorizada com normalização inteligente: "${tx.description}" agora será classificado automaticamente.`,
     })
   }
 
@@ -478,7 +479,7 @@ export default function Transactions() {
                       {/* Category & Status */}
                       <td className="p-3.5 whitespace-nowrap">
                         {cat ? (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold"
                               style={{
@@ -492,6 +493,13 @@ export default function Transactions() {
                               />
                               {cat.name}
                             </span>
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] gap-1 py-0 px-1.5 font-normal"
+                              title="Classificado por correspondência exata inteligente"
+                            >
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Exata
+                            </Badge>
                           </div>
                         ) : tx.needsReview ? (
                           <div className="space-y-1">
@@ -671,7 +679,8 @@ export default function Transactions() {
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-emerald-700 font-medium pt-0.5">
-                  ✓ Salvar aprenderá esta regra exata para novos extratos bancários.
+                  ✓ Salvar aprenderá esta regra com normalização inteligente (trata maiúsculas,
+                  espaços e pontuações) para novos extratos bancários.
                 </p>
               </div>
 

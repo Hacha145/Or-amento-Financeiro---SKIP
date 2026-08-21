@@ -29,6 +29,7 @@ import {
   classifyByExactMatch,
   suggestCategoryByKeywords,
   learnExactRule,
+  buildLearnedRulesMap,
 } from '../lib/learningEngine'
 
 interface FinanceContextType {
@@ -404,6 +405,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       let autoClassified = 0
       let pendingReview = 0
       let currentRules = [...learnedRules]
+      let rulesMap = buildLearnedRulesMap(currentRules)
       let currentCats = [...categories]
 
       const newTransactions: Transaction[] = []
@@ -435,17 +437,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           needsReview = false
           // Learn exact rule for future bank imports
           currentRules = learnExactRule(currentRules, item.description, finalCategoryId)
+          rulesMap = buildLearnedRulesMap(currentRules)
           autoClassified++
         } else {
-          // 2. Bank import: Check EXACT match rule first (Requirement 3: strict full description match)
-          const exactResult = classifyByExactMatch(item.description, currentRules)
+          // 2. Bank import: Check EXACT match rule with intelligent normalization (O(1) lookup)
+          const exactResult = classifyByExactMatch(item.description, rulesMap)
 
           if (exactResult.matched && exactResult.categoryId) {
             finalCategoryId = exactResult.categoryId
             needsReview = false
             autoClassified++
           } else {
-            // 3. No exact match: Suggest possible category via keywords, but mark needsReview: true (Requirement 4)
+            // 3. No exact match: Suggest possible category via keywords, but mark needsReview: true
             needsReview = true
             suggestedCategoryId = suggestCategoryByKeywords(item.description, currentCats)
             pendingReview++
