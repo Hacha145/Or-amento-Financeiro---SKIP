@@ -116,14 +116,7 @@ export function loadBudgets(): BudgetLimit[] {
   } catch (e) {
     console.error('Error loading budgets', e)
   }
-  return [
-    { categoryId: 'cat-alimentacao', monthlyLimit: 1500 },
-    { categoryId: 'cat-transporte', monthlyLimit: 600 },
-    { categoryId: 'cat-moradia', monthlyLimit: 2200 },
-    { categoryId: 'cat-saude', monthlyLimit: 400 },
-    { categoryId: 'cat-assinaturas', monthlyLimit: 200 },
-    { categoryId: 'cat-lazer', monthlyLimit: 500 },
-  ]
+  return []
 }
 
 export function saveBudgets(budgets: BudgetLimit[]): void {

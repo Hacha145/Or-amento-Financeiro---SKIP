@@ -190,15 +190,19 @@ export function suggestCategoryByKeywords(
       'alimentacao',
       'lanchonete',
       'sorveteria',
-      'bistrô',
       'bistro',
       'sushi',
       'pastelaria',
       'confeitaria',
-      'hortifruti',
       'doceria',
       'delivery',
       'superpao',
+      'emporio',
+      'hortifrute',
+      'marmita',
+      'cantina',
+      'panificadora',
+      'acai',
     ],
     'cat-transporte': [
       'uber',
@@ -234,6 +238,8 @@ export function suggestCategoryByKeywords(
       'auto pecas',
       'pneu',
       'troca de oleo',
+      'combust',
+      'estac',
     ],
     'cat-moradia': [
       'aluguel',
@@ -261,6 +267,9 @@ export function suggestCategoryByKeywords(
       'neoenergia',
       'cpfl',
       'condominio residencial',
+      'edificio',
+      'resd',
+      'residencia',
     ],
     'cat-saude': [
       'farmacia',
@@ -292,13 +301,15 @@ export function suggestCategoryByKeywords(
       'otica',
       'clinica',
       'fisioterapia',
+      'lab',
+      'hosp',
+      'farm',
     ],
     'cat-assinaturas': [
       'assinatura',
       'netflix',
       'spotify',
       'amazon prime',
-      'disney+',
       'disney',
       'hbo max',
       'hbomax',
@@ -317,6 +328,9 @@ export function suggestCategoryByKeywords(
       'mensalidade',
       'recorrencia',
       'assinante',
+      'deezer',
+      'globoplay',
+      'prime video',
     ],
     'cat-lazer': [
       'cinema',
@@ -341,6 +355,11 @@ export function suggestCategoryByKeywords(
       'parque',
       'clube',
       'viagem',
+      'resort',
+      'pousada',
+      'baralho',
+      'festa',
+      'jogos',
     ],
     'cat-educacao': [
       'escola',
@@ -361,6 +380,9 @@ export function suggestCategoryByKeywords(
       'cna',
       'cultura inglesa',
       'colegio',
+      'educacao',
+      'treinamento',
+      'apostila',
     ],
     'cat-impostos': [
       'imposto',
@@ -385,6 +407,8 @@ export function suggestCategoryByKeywords(
       'guia darf',
       'guia das',
       'taxas e impostos',
+      'taxa',
+      'multa',
     ],
     'cat-cartao': [
       'pagamento recebido',
@@ -412,81 +436,97 @@ export function suggestCategoryByKeywords(
   const MIN_PREFIX_LEN = 4
 
   // Helper to match a keyword candidate against description and its words
-  const matchesKeyword = (normKw: string): boolean => {
-    if (!normKw) return false
+  // Returns match score: 3 = exact/substring match, 2 = whole-word prefix/start match, 1 = token prefix match, 0 = no match
+  const getKeywordMatchScore = (normKw: string): number => {
+    if (!normKw) return 0
 
-    // 1. Direct substring or identical match
+    // 1. Exact string match or direct phrase containment
+    if (norm === normKw) {
+      return 100 + normKw.length
+    }
     if (norm.includes(normKw)) {
-      return true
+      // Direct whole keyword substring match
+      return 50 + normKw.length
     }
 
-    // 2. Prefix matching for truncated/cut words (minimum 4 characters)
-    // Check multi-word keyword tokens or single keyword
     const kwWords = normKw.split(' ').filter((w) => w.length > 0)
 
+    // 2. Check if any word in description matches or starts with keyword (or vice versa)
     for (const dWord of descWords) {
-      // Check against individual words of keyword or single-word keyword
+      // If single-word keyword or comparing tokens
       for (const kWord of kwWords) {
-        // Case A: word in description is prefix of keyword word (e.g. "medic" is prefix of "medica" / "medico" / "medicamento")
-        if (
-          dWord.length >= MIN_PREFIX_LEN &&
-          kWord.length > dWord.length &&
-          kWord.startsWith(dWord)
-        ) {
-          return true
+        if (dWord === kWord) {
+          return 40 + kWord.length
         }
-
-        // Case B: keyword word is prefix of word in description (e.g. keyword "medic" is prefix of "medicamento" in description)
+        // If keyword has at least 4 chars and description word starts with it (e.g. kw "supermercado" or "medic" -> "medicamentos")
         if (
           kWord.length >= MIN_PREFIX_LEN &&
           dWord.length > kWord.length &&
           dWord.startsWith(kWord)
         ) {
-          return true
+          return 20 + kWord.length
+        }
+        // If description word is a prefix of keyword (e.g. dWord "drogas" -> kw "drogasil" or "supermerc" -> "supermercado")
+        if (
+          dWord.length >= MIN_PREFIX_LEN &&
+          kWord.length > dWord.length &&
+          kWord.startsWith(dWord)
+        ) {
+          return 15 + dWord.length
         }
       }
 
-      // Also check whole normalized keyword against dWord if keyword has no spaces
+      // Check whole normalized keyword against dWord
       if (kwWords.length === 1) {
-        if (
-          dWord.length >= MIN_PREFIX_LEN &&
-          normKw.length > dWord.length &&
-          normKw.startsWith(dWord)
-        ) {
-          return true
-        }
         if (
           normKw.length >= MIN_PREFIX_LEN &&
           dWord.length > normKw.length &&
           dWord.startsWith(normKw)
         ) {
-          return true
+          return 20 + normKw.length
+        }
+        if (
+          dWord.length >= MIN_PREFIX_LEN &&
+          normKw.length > dWord.length &&
+          normKw.startsWith(dWord)
+        ) {
+          return 15 + dWord.length
         }
       }
     }
 
-    return false
+    return 0
   }
 
-  // Find category that matches any known keyword
+  let bestCatId: string | null = null
+  let highestScore = 0
+
+  // Check all known categories and keywords to find best scoring match
   for (const cat of categories) {
     const catId = cat.id
     const keywords = keywordMap[catId] || []
+
     for (const kw of keywords) {
       const normKw = normalizeDescription(kw)
-      if (matchesKeyword(normKw)) {
-        return cat.id
+      const score = getKeywordMatchScore(normKw)
+      if (score > highestScore) {
+        highestScore = score
+        bestCatId = cat.id
       }
     }
 
     // Also check category name itself as keyword
     const catNameNorm = normalizeDescription(cat.name)
-    if (catNameNorm.length >= MIN_PREFIX_LEN && matchesKeyword(catNameNorm)) {
-      return cat.id
+    if (catNameNorm.length >= 3) {
+      const score = getKeywordMatchScore(catNameNorm)
+      if (score > highestScore) {
+        highestScore = score
+        bestCatId = cat.id
+      }
     }
   }
 
-  return null
+  return bestCatId
 }
 
 /**

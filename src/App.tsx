@@ -20,8 +20,8 @@ import NotFound from './pages/NotFound'
 function AppRoutes() {
   const { settings, transactions } = useFinance()
 
-  // If user hasn't completed setup and has 0 transactions, route to onboarding
-  const isFirstTime = !settings.setupCompleted && transactions.length === 0
+  // Only redirect to onboarding on root "/" if setup has not been completed AND there are no transactions
+  const shouldShowOnboarding = !settings.setupCompleted && transactions.length === 0
 
   return (
     <Routes>
@@ -30,7 +30,7 @@ function AppRoutes() {
       <Route element={<Layout />}>
         <Route
           path="/"
-          element={isFirstTime ? <Navigate to="/boas-vindas" replace /> : <Index />}
+          element={shouldShowOnboarding ? <Navigate to="/boas-vindas" replace /> : <Index />}
         />
         <Route path="/transacoes" element={<Transactions />} />
         <Route path="/importar" element={<ImportBank />} />
