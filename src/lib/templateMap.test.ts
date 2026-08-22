@@ -22,8 +22,11 @@ import {
   diagnoseSheet,
   reconcileSheet,
   getSectionBounds,
+  extractResumoMeta,
   type YearSheetMap,
 } from './templateMap'
+import { computeAnnualSummary, buildItemClassLookup } from './annualSummaryService'
+import type { Transaction, FinancialItem } from '../types/finance'
 
 // ---------------------------------------------------------------------------
 // Helpers to build a synthetic sheet matrix (1-based, index 0 unused) so the
@@ -418,5 +421,515 @@ describe('templateMap — diagnoseSheet totals per section', () => {
     expect(diag.monthsFallback).toBe(false)
     expect(diag.janColumn).toBe(5)
     expect(diag.dezColumn).toBe(16)
+  })
+
+  it('2025: receitas has NO "% sobre receita" total (only the 4 despesa classes + investimentos do)', () => {
+    const matrix = buildSynthetic2025()
+    const diag = diagnoseSheet('Orçamento 2025', matrix)
+    const labels = diag.totalsFound.map((t) => t.label)
+    // Part 1: receitas must NOT carry a "% sobre receita" entry — only a "Total receitas".
+    expect(labels).toContain('Total receitas')
+    // Exactly 5 "% sobre receita" entries (investimentos + 4 despesa classes) — NOT 6.
+    // (Previously receitas added a 6th percent entry that never matched → false "não encontrado".)
+    const percentLabelCount = labels.filter((l) => l === '% sobre receita').length
+    expect(percentLabelCount).toBe(5)
+    // The 4 despesa classes + investimentos still carry "% sobre receita".
+    // buildTotalsForYear emits one percent entry per class whose percentRow != null.
+    const matrix2025 = buildYearSheetMap('Orçamento 2025', 2025)
+    const percentTotals = matrix2025.totals.filter((t) => t.kind === 'percent')
+    const percentClasses = new Set(percentTotals.map((t) => t.classId))
+    expect(percentClasses.has('receitas')).toBe(false)
+    expect(percentClasses.has('investimentos')).toBe(true)
+    expect(percentClasses.has('despesas_fixas')).toBe(true)
+    expect(percentClasses.has('despesas_variaveis')).toBe(true)
+    expect(percentClasses.has('despesas_extras')).toBe(true)
+    expect(percentClasses.has('despesas_adicionais')).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Part 1 — percentRow regressions per year
+// ---------------------------------------------------------------------------
+describe('templateMap — receitas percentRow is null (Part 1)', () => {
+  it('2025: getSectionBounds(receitas).percentRow === null', () => {
+    expect(getSectionBounds(2025, 'receitas')!.percentRow).toBeNull()
+  })
+  it('2023: getSectionBounds(receitas).percentRow === null', () => {
+    expect(getSectionBounds(2023, 'receitas')!.percentRow).toBeNull()
+  })
+  it('2024: getSectionBounds(receitas).percentRow === null', () => {
+    expect(getSectionBounds(2024, 'receitas')!.percentRow).toBeNull()
+  })
+  it('2026: getSectionBounds(receitas).percentRow === null', () => {
+    expect(getSectionBounds(2026, 'receitas')!.percentRow).toBeNull()
+  })
+
+  it('2025: investimentos STILL has a percentRow (not nulled out)', () => {
+    expect(getSectionBounds(2025, 'investimentos')!.percentRow).not.toBeNull()
+    expect(getSectionBounds(2025, 'investimentos')!.percentRow).toBe(23)
+  })
+  it('2025: the 4 despesa classes STILL have a percentRow', () => {
+    for (const c of [
+      'despesas_fixas',
+      'despesas_variaveis',
+      'despesas_extras',
+      'despesas_adicionais',
+    ]) {
+      expect(getSectionBounds(2025, c)!.percentRow).not.toBeNull()
+    }
+  })
+
+  it('buildTotalsForYear does NOT emit a percent entry for receitas (any year)', () => {
+    const matrix2025 = buildYearSheetMap('Orçamento 2025', 2025)
+    const recPercent = matrix2025.totals.find(
+      (t) => t.classId === 'receitas' && t.kind === 'percent',
+    )
+    expect(recPercent).toBeUndefined()
+    // and the percent label is NOT present in the totals list at all (only one
+    // "% sobre receita" per despesa/investimentos class)
+    const percentClasses = new Set(
+      matrix2025.totals.filter((t) => t.kind === 'percent').map((t) => t.classId),
+    )
+    expect(percentClasses.has('receitas')).toBe(false)
+  })
+
+  it('diagnoseSheet no longer reports "Total "% sobre receita" não encontrado" for receitas (2025)', () => {
+    const matrix = buildSynthetic2025()
+    // buildSynthetic2025 still has a "% sobre receita" label on row 13 (under
+    // receitas) from the legacy fixture — that's fine; the point is that the
+    // diagnostic no longer EXPECTS one for receitas. The totalsFound list must
+    // not contain a receitas percent entry.
+    const diag = diagnoseSheet('Orçamento 2025', matrix)
+    const recPercent = diag.totalsFound.find(
+      (t) => t.label.includes('receitas') && t.label.includes('%'),
+    )
+    expect(recPercent).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Part 2 — RESUMO metadata extraction
+// ---------------------------------------------------------------------------
+describe('templateMap — extractResumoMeta (Part 2)', () => {
+  function buildResumoMatrix(): (string | number | null)[][] {
+    const m: (string | number | null)[][] = []
+    for (let i = 0; i <= 30; i++) m.push(new Array(8).fill(null))
+    // header row 1: columns include Ano markers
+    m[1][1] = 'RESUMO'
+    m[1][3] = '2024'
+    m[1][5] = '2025'
+    // header row 2: "Observação" column header
+    m[2][6] = 'Observação'
+    // row 4: DESPESAS FIXAS with an observation for 2024
+    m[4][1] = 'DESPESAS FIXAS'
+    m[4][3] = '2024'
+    m[4][6] = 'Aumento do aluguel em setembro.'
+    // row 5: DESPESAS VARIÁVEIS with an observation for 2025
+    m[5][1] = 'DESPESAS VARIÁVEIS'
+    m[5][5] = '2025'
+    m[5][6] = 'Supermercado subiu mais que a inflação.'
+    // row 6: DESPESAS EXTRAS
+    m[6][1] = 'DESPESAS EXTRAS'
+    m[6][3] = '2024'
+    m[6][6] = 'Gastos com veterinário dos gatos.'
+    // row 7: DESPESAS ADICIONAIS
+    m[7][1] = 'DESPESAS ADICIONAIS'
+    m[7][5] = '2025'
+    m[7][6] = 'Viagem internacional no meio do ano.'
+    // Legend block starting at row 10
+    m[10][1] = 'LEGENDA'
+    m[11][1] = 'DESPESAS FIXAS'
+    m[11][2] = 'Aluguel, Condomínio, Prestação moto, Plano de saúde, DAS'
+    m[12][1] = 'DESPESAS VARIÁVEIS'
+    m[12][2] = 'Luz, Telefone, Supermercado, Combustível'
+    m[13][1] = 'DESPESAS EXTRAS'
+    m[13][2] = 'Medicamentos, Farmácia, Dentista'
+    m[14][1] = 'DESPESAS ADICIONAIS'
+    m[14][2] = 'Viagens, Restaurantes, Roupas'
+    return m
+  }
+
+  it('extracts observations tied to year + despesa class metric', () => {
+    const meta = extractResumoMeta(buildResumoMatrix(), 'RESUMO')
+    expect(meta.observations.length).toBe(4)
+    const fixas2024 = meta.observations.find(
+      (o) => o.year === 2024 && o.metric === 'despesas_fixas',
+    )
+    expect(fixas2024?.text).toContain('aluguel')
+    const variaveis2025 = meta.observations.find(
+      (o) => o.year === 2025 && o.metric === 'despesas_variaveis',
+    )
+    expect(variaveis2025?.text).toContain('Supermercado')
+  })
+
+  it('extracts the legend with classId + categories (no catalog categories created)', () => {
+    const meta = extractResumoMeta(buildResumoMatrix(), 'RESUMO')
+    expect(meta.legend.length).toBe(4)
+    const fixas = meta.legend.find((l) => l.classId === 'despesas_fixas')
+    expect(fixas?.categories).toContain('Aluguel')
+    expect(fixas?.categories).toContain('Condomínio')
+    const adicionais = meta.legend.find((l) => l.classId === 'despesas_adicionais')
+    expect(adicionais?.categories).toContain('Viagens')
+    // purely descriptive metadata — no id-shaped catalog entries are produced
+    expect(meta.legend.some((l) => l.categories.some((c) => c.startsWith('cat-')))).toBe(false)
+  })
+
+  it('reports the years found in the header/rows', () => {
+    const meta = extractResumoMeta(buildResumoMatrix(), 'RESUMO')
+    expect(meta.yearsFound).toContain(2024)
+    expect(meta.yearsFound).toContain(2025)
+  })
+
+  it('is defensive: returns empty result on a blank matrix (no throws)', () => {
+    const blank: (string | number | null)[][] = []
+    expect(() => extractResumoMeta(blank, 'RESUMO')).not.toThrow()
+    const meta = extractResumoMeta(blank, 'RESUMO')
+    expect(meta.observations).toEqual([])
+    expect(meta.legend).toEqual([])
+    expect(meta.yearsFound).toEqual([])
+  })
+
+  it('isAuxiliarySheet still returns true for RESUMO (still skipped in the tx loop)', () => {
+    expect(isAuxiliarySheet('RESUMO')).toBe(true)
+    expect(isAuxiliarySheet('Resumo Geral')).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Part 3 — computeAnnualSummary
+// ---------------------------------------------------------------------------
+describe('annualSummaryService — computeAnnualSummary (Part 3)', () => {
+  // minimal item catalog covering the classes we exercise
+  const items: FinancialItem[] = [
+    {
+      id: 'item-salario',
+      classId: 'receitas',
+      categoryId: null,
+      name: 'Salário',
+      color: '#000',
+      keywords: [],
+      aliases: [],
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: 'item-cripto',
+      classId: 'investimentos',
+      categoryId: null,
+      name: 'Cripto',
+      color: '#000',
+      keywords: [],
+      aliases: [],
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: 'item-aluguel',
+      classId: 'despesas_fixas',
+      categoryId: 'cat-fixas-habitacao',
+      name: 'Aluguel',
+      color: '#000',
+      keywords: [],
+      aliases: [],
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: 'item-emprestimo',
+      classId: 'despesas_fixas',
+      categoryId: 'cat-fixas-outros',
+      name: 'Empréstimo',
+      color: '#000',
+      keywords: [],
+      aliases: [],
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: 'item-supermercado',
+      classId: 'despesas_variaveis',
+      categoryId: 'cat-variaveis-alimentacao',
+      name: 'Supermercado',
+      color: '#000',
+      keywords: [],
+      aliases: [],
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: 'item-medicamentos',
+      classId: 'despesas_extras',
+      categoryId: 'cat-extras-saude',
+      name: 'Medicamentos',
+      color: '#000',
+      keywords: [],
+      aliases: [],
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: 'item-viagens',
+      classId: 'despesas_adicionais',
+      categoryId: 'cat-adicionais-lazer',
+      name: 'Viagens',
+      color: '#000',
+      keywords: [],
+      aliases: [],
+      active: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+  ]
+  const itemClassById = buildItemClassLookup(items)
+
+  function tx(
+    id: string,
+    date: string,
+    amount: number,
+    type: Transaction['type'],
+    itemId: string,
+  ): Transaction {
+    return {
+      id,
+      date,
+      description: '',
+      amount,
+      type,
+      categoryId: null,
+      itemId,
+      needsReview: false,
+      createdAt: '',
+      updatedAt: '',
+    }
+  }
+
+  function syntheticTxSet(): Transaction[] {
+    return [
+      // 2024
+      tx('a', '2024-01-15', 5000, 'income', 'item-salario'),
+      tx('b', '2024-01-15', 1000, 'investment_in', 'item-cripto'),
+      tx('c', '2024-01-15', 800, 'expense', 'item-aluguel'),
+      tx('d', '2024-01-15', 200, 'expense', 'item-emprestimo'), // emprestimo 2024
+      tx('e', '2024-02-15', 400, 'expense', 'item-supermercado'),
+      tx('f', '2024-03-15', 100, 'expense', 'item-medicamentos'),
+      tx('g', '2024-04-15', 300, 'expense', 'item-viagens'),
+      // 2025
+      tx('h', '2025-01-15', 6000, 'income', 'item-salario'),
+      tx('i', '2025-01-15', 1500, 'investment_in', 'item-cripto'),
+      tx('j', '2025-01-15', 880, 'expense', 'item-aluguel'), // +80 vs 2024
+      tx('k', '2025-01-15', 300, 'expense', 'item-emprestimo'), // emprestimo 2025 = 300
+      tx('l', '2025-02-15', 480, 'expense', 'item-supermercado'), // +80 vs 2024
+      tx('m', '2025-03-15', 100, 'expense', 'item-medicamentos'), // 0 diff
+      tx('n', '2025-04-15', 600, 'expense', 'item-viagens'), // +300 vs 2024
+    ]
+  }
+
+  it('computes correct per-class totals per year', () => {
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+    )
+    const y2024 = summary.find((s) => s.year === 2024)!
+    expect(y2024.receitas).toBe(5000)
+    expect(y2024.investimentos).toBe(1000)
+    expect(y2024.despesas_fixas).toBe(1000) // 800 aluguel + 200 emprestimo
+    expect(y2024.despesas_variaveis).toBe(400)
+    expect(y2024.despesas_extras).toBe(100)
+    expect(y2024.despesas_adicionais).toBe(300)
+    const y2025 = summary.find((s) => s.year === 2025)!
+    expect(y2025.receitas).toBe(6000)
+    expect(y2025.despesas_fixas).toBe(1180) // 880 + 300
+    expect(y2025.despesas_variaveis).toBe(480)
+  })
+
+  it('totalDespesas = fixas + variaveis + extras + adicionais (receitas/investimentos excluded)', () => {
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+    )
+    for (const s of summary) {
+      expect(s.totalDespesas).toBe(
+        Math.round(
+          (s.despesas_fixas + s.despesas_variaveis + s.despesas_extras + s.despesas_adicionais) *
+            100,
+        ) / 100,
+      )
+      // receitas and investimentos are NOT part of totalDespesas: rebuilding
+      // totalDespesas with them would change the value.
+      const withIncome =
+        Math.round(
+          (s.despesas_fixas +
+            s.despesas_variaveis +
+            s.despesas_extras +
+            s.despesas_adicionais +
+            s.receitas +
+            s.investimentos) *
+            100,
+        ) / 100
+      expect(withIncome).not.toBe(s.totalDespesas)
+    }
+  })
+
+  it('composition percentages sum to ~100% of totalDespesas', () => {
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+    )
+    const y2024 = summary.find((s) => s.year === 2024)!
+    expect(y2024.totalDespesas).toBe(1800)
+    const sum =
+      (y2024.pct_fixas ?? 0) +
+      (y2024.pct_variaveis ?? 0) +
+      (y2024.pct_extras ?? 0) +
+      (y2024.pct_adicionais ?? 0)
+    expect(sum).toBeCloseTo(1, 2) // 100% expressed as 1.0
+    // fixas = 1000/1800 ≈ 0.5556
+    expect(y2024.pct_fixas).toBeCloseTo(1000 / 1800, 2)
+  })
+
+  it('first available year has all diffs = null (no prior year to compare)', () => {
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+    )
+    const y2024 = summary[0]
+    expect(y2024.year).toBe(2024)
+    expect(y2024.diff_fixas).toBeNull()
+    expect(y2024.diff_totalDespesas).toBeNull()
+    expect(y2024.diff_receitas).toBeNull()
+    expect(y2024.diffPct_fixas).toBeNull()
+    expect(y2024.diffPct_totalDespesas).toBeNull()
+    // sem-emprestimo scenario diffs also null for the first year
+    expect(y2024.semEmprestimo.diff_fixas).toBeNull()
+    expect(y2024.semEmprestimo.diff_totalDespesas).toBeNull()
+  })
+
+  it('YoY diff (R$) = current - previous, % diff = diff / |previous|', () => {
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+    )
+    const y2025 = summary[1]
+    // fixas: 1180 - 1000 = 180
+    expect(y2025.diff_fixas).toBe(180)
+    // pct: 180 / 1000 = 0.18
+    expect(y2025.diffPct_fixas).toBeCloseTo(0.18, 2)
+    // totalDespesas: (880+300+480+100+600) - (800+200+400+100+300) = 2360 - 1800 = 560
+    expect(y2025.diff_totalDespesas).toBe(560)
+    expect(y2025.diffPct_totalDespesas).toBeCloseTo(560 / 1800, 2)
+    // receitas: 6000 - 5000 = 1000
+    expect(y2025.diff_receitas).toBe(1000)
+  })
+
+  it('cenário sem empréstimo: subtracts emprestimoAnual from fixas only; other classes unchanged', () => {
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+    )
+    const y2024 = summary[0]
+    // emprestimoAnual 2024 = 200
+    expect(y2024.emprestimoAnual).toBe(200)
+    expect(y2024.semEmprestimo.despesas_fixas).toBe(800) // 1000 - 200
+    // other classes unchanged
+    expect(y2024.semEmprestimo.pct_variaveis).not.toBeNull()
+    // totalDespesas_sem_emprestimo = 800 + 400 + 100 + 300 = 1600
+    expect(y2024.semEmprestimo.totalDespesas).toBe(1600)
+    // recompose pct using the new denominator
+    expect(y2024.semEmprestimo.pct_fixas).toBeCloseTo(800 / 1600, 2)
+    expect(y2024.semEmprestimo.pct_variaveis).toBeCloseTo(400 / 1600, 2)
+  })
+
+  it('empréstimo acumulado = running sum up to and including the current year', () => {
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+    )
+    expect(summary[0].emprestimoAcumulado).toBe(200) // 2024 only
+    expect(summary[1].emprestimoAcumulado).toBe(500) // 200 + 300
+  })
+
+  it('cenário sem empréstimo YoY compares "atual sem" vs "anterior sem"', () => {
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+    )
+    const y2025 = summary[1]
+    // sem fixas 2025 = 1180 - 300 = 880; sem fixas 2024 = 1000 - 200 = 800 → diff 80
+    expect(y2025.semEmprestimo.despesas_fixas).toBe(880)
+    expect(y2025.semEmprestimo.diff_fixas).toBe(80)
+    // sem total 2025 = 880 + 480 + 100 + 600 = 2060; sem total 2024 = 1600 → 460
+    expect(y2025.semEmprestimo.totalDespesas).toBe(2060)
+    expect(y2025.semEmprestimo.diff_totalDespesas).toBe(460)
+  })
+
+  it('never produces Infinity/NaN — division by zero returns null', () => {
+    // year with zero transactions → totalDespesas = 0 → all pct_* null, not Infinity
+    const empty: Transaction[] = []
+    const summary = computeAnnualSummary(empty, [2024, 2025], 'item-emprestimo', itemClassById)
+    for (const s of summary) {
+      for (const pct of [s.pct_fixas, s.pct_variaveis, s.pct_extras, s.pct_adicionais]) {
+        expect(pct).toBeNull()
+      }
+      expect(s.totalDespesas).toBe(0)
+      expect(Number.isFinite(s.totalDespesas)).toBe(true)
+      // sem-emprestimo also null (no Infinity)
+      expect(s.semEmprestimo.pct_fixas).toBeNull()
+      expect(s.semEmprestimo.pct_variaveis).toBeNull()
+      expect(Number.isFinite(s.semEmprestimo.totalDespesas)).toBe(true)
+    }
+  })
+
+  it('diffPct returns null when the previous value is 0 (no #DIV/0!)', () => {
+    // 2024 has 0 in some class (despesas_adicionais=300, but let's force a 0
+    // by removing the viagens tx of 2024)
+    const txs = syntheticTxSet().filter((t) => t.id !== 'g') // remove 2024 viagens
+    const summary = computeAnnualSummary(txs, [2024, 2025], 'item-emprestimo', itemClassById)
+    const y2025 = summary[1]
+    // 2024 adicionais = 0 → diffPct_adicionais for 2025 must be null
+    expect(y2025.diffPct_adicionais).toBeNull()
+    // but the R$ diff is still computed (600 - 0 = 600)
+    expect(y2025.diff_adicionais).toBe(600)
+  })
+
+  it('carries the qualitative observations filtered by year', () => {
+    const observacoes = [
+      { year: 2024, metric: 'despesas_fixas', text: 'Aluguel subiu.' },
+      { year: 2025, metric: 'despesas_variaveis', text: 'Supermercado caro.' },
+    ]
+    const summary = computeAnnualSummary(
+      syntheticTxSet(),
+      [2024, 2025],
+      'item-emprestimo',
+      itemClassById,
+      observacoes,
+    )
+    const y2024 = summary.find((s) => s.year === 2024)!
+    expect(y2024.observacoes.length).toBe(1)
+    expect(y2024.observacoes[0].text).toContain('Aluguel')
+    const y2025 = summary.find((s) => s.year === 2025)!
+    expect(y2025.observacoes.length).toBe(1)
+    expect(y2025.observacoes[0].metric).toBe('despesas_variaveis')
   })
 })

@@ -23,10 +23,13 @@ import {
   reconcileSheet,
   buildImportReport,
   txKey,
+  extractResumoMeta,
+  normalizeAnchorLabel,
   YearSheetMap,
   SheetDiagnostic,
   ReconciliationReport,
   ImportReport,
+  ResumoMeta,
 } from './templateMap'
 import { ClassificationRule } from '../types/finance'
 import { classifyTransaction } from './classificationEngine'
@@ -50,6 +53,14 @@ export interface TemplateImportResult {
   report: ImportReport
   /** sheets that were skipped because they could not be confidently read (§1.9) */
   skippedSheets: { sheetName: string; reasons: string[] }[]
+  /**
+   * Metadata extracted from the auxiliary RESUMO tab (Part 2). The RESUMO
+   * tab carries NO transactions (it is still skipped by the transaction
+   * loop), but it DOES carry qualitative observations + a class legend that
+   * are surfaced here as structured metadata. Undefined when the workbook
+   * has no RESUMO tab.
+   */
+  resumoMeta?: ResumoMeta
 }
 
 export interface TemplateExtractedTransaction {
@@ -91,11 +102,10 @@ export async function importTemplateXLSX(
 
   for (const sheet of parsed.sheets) {
     // Skip auxiliary sheets (RESUMO etc.) — they carry no transactional rows.
+    // (The RESUMO tab is processed separately below, AFTER the transaction
+    // loop, to extract qualitative metadata — observations + legend — without
+    // creating any transactions. See Part 2 of the prompt.)
     if (isAuxiliarySheet(sheet.sheetName)) {
-      skippedSheets.push({
-        sheetName: sheet.sheetName,
-        reasons: ['Aba auxiliar (RESUMO) — não requer importação transacional'],
-      })
       continue
     }
 
@@ -277,6 +287,27 @@ export async function importTemplateXLSX(
     reconciliations,
   )
 
+  // Process the auxiliary RESUMO tab for qualitative metadata (Part 2).
+  // It carries NO transactions — the transaction loop above skipped it — but
+  // it DOES carry observations + a class legend that we surface as structured
+  // metadata. No catalog categories are created from the legend.
+  const resumoSheet = parsed.sheets.find((s) => {
+    const n = normalizeAnchorLabel(s.sheetName)
+    return n === 'RESUMO' || n.includes('RESUMO')
+  })
+  let resumoMeta: ResumoMeta | undefined
+  if (resumoSheet) {
+    resumoMeta = extractResumoMeta(resumoSheet.matrix, resumoSheet.sheetName)
+    const obsCount = resumoMeta.observations.length
+    const legendCount = resumoMeta.legend.length
+    skippedSheets.push({
+      sheetName: resumoSheet.sheetName,
+      reasons: [
+        `Aba auxiliar reconhecida: RESUMO — ${obsCount} observação(ões), ${legendCount} classe(s) na legenda`,
+      ],
+    })
+  }
+
   return {
     parsed,
     diagnostics,
@@ -285,6 +316,7 @@ export async function importTemplateXLSX(
     reconciliations,
     report,
     skippedSheets,
+    resumoMeta,
   }
 }
 

@@ -247,7 +247,10 @@ const SECTION_BOUNDS: Record<number, YearSectionMap> = {
       totalRow: 10,
       totalColumn: 4,
       totalAnchor: 'Total',
-      percentRow: 12,
+      // Receitas NÃO possui linha "% sobre receita" no template real
+      // (apenas Investimentos + as 4 classes de despesas possuem).
+      // null evita o falso diagnóstico "Total "% sobre receita" não encontrado".
+      percentRow: null,
     },
     investimentos: {
       classId: 'investimentos',
@@ -303,7 +306,8 @@ const SECTION_BOUNDS: Record<number, YearSectionMap> = {
       totalRow: 11,
       totalColumn: 4,
       totalAnchor: 'Total',
-      percentRow: 13,
+      // Receitas NÃO possui linha "% sobre receita" no template real.
+      percentRow: null,
     },
     investimentos: {
       classId: 'investimentos',
@@ -359,7 +363,8 @@ const SECTION_BOUNDS: Record<number, YearSectionMap> = {
       totalRow: 11,
       totalColumn: 4,
       totalAnchor: 'Total',
-      percentRow: 13,
+      // Receitas NÃO possui linha "% sobre receita" no template real.
+      percentRow: null,
     },
     investimentos: {
       classId: 'investimentos',
@@ -415,7 +420,8 @@ const SECTION_BOUNDS: Record<number, YearSectionMap> = {
       totalRow: 11,
       totalColumn: 4,
       totalAnchor: 'Total',
-      percentRow: 13,
+      // Receitas NÃO possui linha "% sobre receita" no template real.
+      percentRow: null,
     },
     investimentos: {
       classId: 'investimentos',
@@ -2093,4 +2099,221 @@ export function txKey(itemId: string, month: number): string {
  */
 export function classById(classes: FinancialClass[], id: string): FinancialClass | undefined {
   return classes.find((c) => c.id === id)
+}
+
+// ---------------------------------------------------------------------------
+// RESUMO sheet metadata extraction (Part 2 — processar aba RESUMO como
+// metadado analítico, NÃO como transações).
+//
+// The RESUMO tab carries no transactional rows (it is an auxiliary sheet —
+// `isAuxiliarySheet` keeps returning true so the transaction loop skips it),
+// but it DOES carry qualitative metadata: an "Observação" column with notes
+// per (year, metric) and a LEGENDA explaining which categories compose each
+// macroclass. This extractor reads that metadata without creating any
+// transactions or duplicate categories in the catalog.
+// ---------------------------------------------------------------------------
+
+export interface ResumoObservation {
+  year: number
+  /** one of the despesa classes: despesas_fixas | despesas_variaveis | despesas_extras | despesas_adicionais */
+  metric: string
+  text: string
+}
+
+export interface ResumoLegendEntry {
+  classId: string
+  categories: string[]
+}
+
+export interface ResumoMeta {
+  observations: ResumoObservation[]
+  legend: ResumoLegendEntry[]
+  yearsFound: number[]
+}
+
+/** class label (normalized) → stable class id */
+const RESUMO_CLASS_LABEL_TO_ID: Record<string, string> = {}
+for (const [classId, label] of Object.entries(CANONICAL_CLASS_LABELS)) {
+  RESUMO_CLASS_LABEL_TO_ID[normalizeAnchorLabel(label)] = classId
+}
+
+/** The 4 despesa classes that carry "% sobre receita" + qualitative observations. */
+const RESUMO_METRIC_CLASSES = new Set([
+  'despesas_fixas',
+  'despesas_variaveis',
+  'despesas_extras',
+  'despesas_adicionais',
+])
+
+const RESUMO_YEAR_SET = new Set([2023, 2024, 2025, 2026])
+
+/**
+ * Extract qualitative metadata (observations + legend + years) from the RESUMO
+ * auxiliary sheet. Defensive by design: the RESUMO layout varies between
+ * workbook versions, so every step is anchor-based (search by label) rather
+ * than coordinate-based. Never throws — returns whatever it could find.
+ *
+ * Produces NO transactions and NO catalog categories: the legend is purely
+ * descriptive metadata.
+ */
+export function extractResumoMeta(
+  matrix: (string | number | null)[][],
+  _sheetName: string,
+): ResumoMeta {
+  const observations: ResumoObservation[] = []
+  const legend: ResumoLegendEntry[] = []
+  const yearsFound = new Set<number>()
+
+  const rowCount = matrix.length
+  const colCount = matrix.reduce((m, r) => Math.max(m, r?.length ?? 0), 0)
+
+  // 1. Locate the "Observação" column by scanning header rows (1..6) for labels
+  //    "Observação", "Observações", "Obs.". Accepts partial matches.
+  const obsLabels = ['OBSERVACOES', 'OBSERVACAO', 'OBSERVACAO DO ANO', 'OBS DO ANO', 'OBS']
+  let obsCol: number | null = null
+  for (let r = 1; r <= Math.min(rowCount - 1, 6) && obsCol === null; r++) {
+    const rowArr = matrix[r] || []
+    for (let c = 1; c < rowArr.length; c++) {
+      const n = normalizeAnchorLabel(String(rowArr[c] ?? ''))
+      if (!n) continue
+      if (obsLabels.some((l) => n === l || n.startsWith(l))) {
+        obsCol = c
+        break
+      }
+    }
+  }
+
+  // 2. Walk every row. If the row carries a class label (cols A–D) AND has
+  //    text in the observação column, record an observation. Try to find a
+  //    supported year in the row; fall back to 0 (meaning "no year bound").
+  const findClassIdInRow = (rowArr: (string | number | null)[]): string | null => {
+    for (let c = 1; c <= Math.min(4, rowArr.length - 1); c++) {
+      const n = normalizeAnchorLabel(String(rowArr[c] ?? ''))
+      if (!n) continue
+      for (const [label, id] of Object.entries(RESUMO_CLASS_LABEL_TO_ID)) {
+        if (n === label || n.startsWith(label)) return id
+      }
+    }
+    return null
+  }
+
+  if (obsCol !== null) {
+    for (let r = 1; r < rowCount; r++) {
+      const rowArr = matrix[r] || []
+      const classId = findClassIdInRow(rowArr)
+      if (!classId) continue
+      // only the 4 despesa classes carry qualitative observations (per spec)
+      if (!RESUMO_METRIC_CLASSES.has(classId)) continue
+
+      // find a supported 4-digit year anywhere in the row
+      let year = 0
+      for (let c = 1; c < rowArr.length; c++) {
+        const m = normalizeAnchorLabel(String(rowArr[c] ?? '')).match(/(\d{4})/)
+        if (m) {
+          const y = Number(m[1])
+          if (RESUMO_YEAR_SET.has(y)) {
+            year = y
+            yearsFound.add(y)
+            break
+          }
+        }
+      }
+
+      const text = String(rowArr[obsCol] ?? '').trim()
+      if (!text) continue
+      // avoid duplicating the class label as the "text"
+      if (
+        normalizeAnchorLabel(text) === normalizeAnchorLabel(CANONICAL_CLASS_LABELS[classId] ?? '')
+      ) {
+        continue
+      }
+      observations.push({ year, metric: classId, text })
+    }
+  }
+
+  // 3. Legend: find a "LEGENDA" anchor, then read each subsequent row that
+  //    carries a class label followed by the list of categories that compose
+  //    it (comma/semicolon separated). Pure metadata — never creates catalog
+  //    categories.
+  let legendStartRow = -1
+  for (let r = 1; r < rowCount; r++) {
+    const rowArr = matrix[r] || []
+    if (rowArr.some((c) => normalizeAnchorLabel(String(c ?? '')).includes('LEGENDA'))) {
+      legendStartRow = r
+      break
+    }
+  }
+  if (legendStartRow >= 0) {
+    for (let r = legendStartRow; r < rowCount; r++) {
+      const rowArr = matrix[r] || []
+      let classId: string | null = null
+      let classCol = -1
+      for (let c = 1; c < rowArr.length; c++) {
+        const n = normalizeAnchorLabel(String(rowArr[c] ?? ''))
+        if (!n) continue
+        for (const [label, id] of Object.entries(RESUMO_CLASS_LABEL_TO_ID)) {
+          if (n === label || n.startsWith(label)) {
+            classId = id
+            classCol = c
+            break
+          }
+        }
+        if (classId) break
+      }
+      if (!classId) continue
+      // collect category names from the cells AFTER the class label
+      const cats: string[] = []
+      for (let c = classCol + 1; c < rowArr.length; c++) {
+        const raw = rowArr[c]
+        if (raw == null) continue
+        const s = String(raw).trim()
+        if (!s) continue
+        if (/^\d{4}$/.test(s)) continue // skip bare years
+        const parts = s
+          .split(/[,;]/)
+          .map((p) => p.trim())
+          .filter(Boolean)
+        for (const p of parts) {
+          const n = normalizeAnchorLabel(p)
+          // skip if it looks like a class label itself
+          if (
+            Object.keys(RESUMO_CLASS_LABEL_TO_ID).some(
+              (label) => n === label || n.startsWith(label),
+            )
+          ) {
+            continue
+          }
+          cats.push(p)
+        }
+      }
+      if (cats.length > 0) {
+        // de-dup by classId (first occurrence wins) — legend is descriptive
+        if (!legend.some((e) => e.classId === classId)) {
+          legend.push({ classId, categories: cats })
+        }
+      }
+    }
+  }
+
+  // 4. Also collect supported years from the top header rows even when no
+  //    observation row matched (so yearsFound reflects the sheet's coverage).
+  for (let r = 1; r <= Math.min(rowCount - 1, 6); r++) {
+    const rowArr = matrix[r] || []
+    for (let c = 1; c < rowArr.length; c++) {
+      const m = normalizeAnchorLabel(String(rowArr[c] ?? '')).match(/(\d{4})/)
+      if (m) {
+        const y = Number(m[1])
+        if (RESUMO_YEAR_SET.has(y)) yearsFound.add(y)
+      }
+    }
+  }
+
+  // silence unused-colCount when the matrix is empty (defensive)
+  void colCount
+
+  return {
+    observations,
+    legend,
+    yearsFound: Array.from(yearsFound).sort((a, b) => a - b),
+  }
 }

@@ -22,8 +22,10 @@ import {
   Calculator,
   FileSpreadsheet,
   AlertCircle,
+  Info,
 } from 'lucide-react'
 import type { TemplateImportResult } from '@/lib/templateImporter'
+import { CANONICAL_CLASS_LABELS } from '@/lib/templateMap'
 
 interface Props {
   result: TemplateImportResult
@@ -37,8 +39,15 @@ const fmtBRL = (n: number) =>
 
 export const TemplateImportReport: React.FC<Props> = ({ result }) => {
   const { report, diagnostics, skippedSheets, reconciliations } = result
+  // A skipped sheet only counts as a divergence when it was NOT a recognized
+  // auxiliary tab (RESUMO is now surfaced as metadata, not as a problem).
+  const divergenceSkippedSheets = skippedSheets.filter(
+    (s) => !s.reasons.some((r) => r.startsWith('Aba auxiliar reconhecida')),
+  )
   const hasDivergence =
-    report.divergences.length > 0 || reconciliations.some((r) => !r.ok) || skippedSheets.length > 0
+    report.divergences.length > 0 ||
+    reconciliations.some((r) => !r.ok) ||
+    divergenceSkippedSheets.length > 0
 
   return (
     <div className="space-y-4">
@@ -308,31 +317,124 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
         </CardContent>
       </Card>
 
-      {/* Skipped sheets */}
+      {/* Skipped / auxiliary sheets.
+          Sheets whose reason begins with "Aba auxiliar reconhecida" (the RESUMO
+          tab) are shown as recognized metadata, NOT as "ignored" — per Part 2. */}
       {skippedSheets.length > 0 && (
-        <Card className="border-amber-300 shadow-xs">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold text-amber-900 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600" />
-              Abas ignoradas
-            </CardTitle>
-            <CardDescription className="text-xs text-amber-800">
-              Estas abas não puderam ser lidas com confiança e não foram importadas.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            {skippedSheets.map((s) => (
-              <div key={s.sheetName} className="bg-amber-50 rounded p-2 border border-amber-200">
-                <div className="font-semibold text-amber-900">{s.sheetName}</div>
-                <ul className="list-disc list-inside text-amber-800">
-                  {s.reasons.map((r, i) => (
-                    <li key={i}>{r}</li>
+        <>
+          {skippedSheets.some((s) =>
+            s.reasons.some((r) => r.startsWith('Aba auxiliar reconhecida')),
+          ) && (
+            <Card className="border-sky-300 shadow-xs">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold text-sky-900 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-sky-600" />
+                  Aba auxiliar reconhecida
+                </CardTitle>
+                <CardDescription className="text-xs text-sky-800">
+                  Aba não-transacional processada como metadado analítico (observações + legenda),
+                  sem gerar transações.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs">
+                {skippedSheets
+                  .filter((s) => s.reasons.some((r) => r.startsWith('Aba auxiliar reconhecida')))
+                  .map((s) => (
+                    <div key={s.sheetName} className="bg-sky-50 rounded p-2 border border-sky-200">
+                      <div className="font-semibold text-sky-900">{s.sheetName}</div>
+                      <ul className="list-disc list-inside text-sky-800">
+                        {s.reasons.map((r, i) => (
+                          <li key={i}>{r}</li>
+                        ))}
+                      </ul>
+                      {result.resumoMeta && (
+                        <div className="mt-2 space-y-1">
+                          {result.resumoMeta.yearsFound.length > 0 && (
+                            <div className="text-[10px] text-sky-700">
+                              Anos na aba:{' '}
+                              <span className="font-mono">
+                                {result.resumoMeta.yearsFound.join(', ') || '—'}
+                              </span>
+                            </div>
+                          )}
+                          {result.resumoMeta.observations.length > 0 && (
+                            <div className="mt-2">
+                              <div className="text-[10px] uppercase text-sky-600 font-semibold mb-0.5">
+                                Observações
+                              </div>
+                              <ul className="list-disc list-inside text-sky-800 space-y-0.5">
+                                {result.resumoMeta.observations.map((o, i) => (
+                                  <li key={i} className="text-[11px]">
+                                    <Badge className="bg-sky-100 text-sky-800 border-sky-300 text-[10px] mr-1">
+                                      {o.year || '—'}
+                                    </Badge>
+                                    <span className="font-semibold">
+                                      {CANONICAL_CLASS_LABELS[o.metric] ?? o.metric}:
+                                    </span>{' '}
+                                    {o.text}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {result.resumoMeta.legend.length > 0 && (
+                            <div className="mt-2">
+                              <div className="text-[10px] uppercase text-sky-600 font-semibold mb-0.5">
+                                Legenda (composição das classes)
+                              </div>
+                              <ul className="list-disc list-inside text-sky-800 space-y-0.5">
+                                {result.resumoMeta.legend.map((l, i) => (
+                                  <li key={i} className="text-[11px]">
+                                    <span className="font-semibold">
+                                      {CANONICAL_CLASS_LABELS[l.classId] ?? l.classId}:
+                                    </span>{' '}
+                                    {l.categories.join(', ')}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   ))}
-                </ul>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          )}
+
+          {skippedSheets.some(
+            (s) => !s.reasons.some((r) => r.startsWith('Aba auxiliar reconhecida')),
+          ) && (
+            <Card className="border-amber-300 shadow-xs">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  Abas ignoradas
+                </CardTitle>
+                <CardDescription className="text-xs text-amber-800">
+                  Estas abas não puderam ser lidas com confiança e não foram importadas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs">
+                {skippedSheets
+                  .filter((s) => !s.reasons.some((r) => r.startsWith('Aba auxiliar reconhecida')))
+                  .map((s) => (
+                    <div
+                      key={s.sheetName}
+                      className="bg-amber-50 rounded p-2 border border-amber-200"
+                    >
+                      <div className="font-semibold text-amber-900">{s.sheetName}</div>
+                      <ul className="list-disc list-inside text-amber-800">
+                        {s.reasons.map((r, i) => (
+                          <li key={i}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   )
