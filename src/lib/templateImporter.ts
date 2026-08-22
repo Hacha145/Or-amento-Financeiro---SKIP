@@ -16,6 +16,7 @@ import {
   detectYearFromSheetName,
   detectMonths,
   diagnoseSheet,
+  isAuxiliarySheet,
   locateItem,
   validateByAnchor,
   decomposeFormula,
@@ -89,6 +90,15 @@ export async function importTemplateXLSX(
   const transactions: TemplateExtractedTransaction[] = []
 
   for (const sheet of parsed.sheets) {
+    // Skip auxiliary sheets (RESUMO etc.) — they carry no transactional rows.
+    if (isAuxiliarySheet(sheet.sheetName)) {
+      skippedSheets.push({
+        sheetName: sheet.sheetName,
+        reasons: ['Aba auxiliar (RESUMO) — não requer importação transacional'],
+      })
+      continue
+    }
+
     const diag = diagnoseSheet(sheet.sheetName, sheet.matrix)
     diagnostics.push(diag)
 
@@ -151,6 +161,12 @@ export async function importTemplateXLSX(
         // diagnostic — do not import a guessed value
         continue
       }
+      // Guard: nothing below the Saldo line belongs to the import (e.g. 2026's
+      // trailing "Investido" / "Ultima atualização" rows). canonicalEndRow is
+      // the final Saldo row.
+      if (baseMap.canonicalEndRow && located.row > baseMap.canonicalEndRow) {
+        continue
+      }
       const rowArr = sheet.matrix[located.row] || []
       const raw = rowArr[located.column]
       const formula = sheet.formulas[located.row]?.[located.column] ?? null
@@ -204,20 +220,51 @@ export async function importTemplateXLSX(
     }
   }
 
-  // Reconcile each sheet (§1.8). Since template import does not yet have
-  // pre-existing transactions, the "reconstructed" side is built from the very
-  // values we just extracted — so the diff should be 0 unless a formula was
-  // decomposed differently. This is the structural self-check.
+  // Reconcile each sheet (§1.8). CRITICAL: read the totals DIRECTLY from the
+  // original sheet's total rows (CANONICAL_TOTALS coordinates × month columns)
+  // and compare against the SUM of the extracted transactions grouped by
+  // (classId, month). Previously this compared the extracted values against
+  // themselves, producing a false R$ 0,00.
   const reconciliations: ReconciliationReport[] = []
-  for (const [sheetName, sheetValues] of sheetValuesBySheet.entries()) {
+  for (const [sheetName] of sheetValuesBySheet.entries()) {
     const diag = diagnostics.find((d) => d.sheetName === sheetName)!
-    const txByItemMonth = new Map<string, number>()
+    const yearMap = yearMaps.find((m) => m.sheetName === sheetName)
+    const sheet = parsed.sheets.find((s) => s.sheetName === sheetName)
+    if (!sheet || !yearMap) continue
+
+    // 1. Read the sheet's total cells directly — one per (class, month).
+    const sheetTotalsFromSheet = new Map<string, { value: number; formula?: string }>()
+    for (const total of yearMap.totals) {
+      if (total.kind !== 'total') continue // skip % and saldo rows for tx recon
+      for (let m = 1; m <= 12; m++) {
+        const col = yearMap.monthColumns[m] ?? total.column
+        const rowArr = sheet.matrix[total.row] || []
+        const raw = rowArr[col]
+        const formula = sheet.formulas[total.row]?.[col] ?? null
+        let value = 0
+        if (typeof raw === 'number') value = raw
+        else if (typeof raw === 'string' && raw.trim()) {
+          const cleaned = raw.replace(/\./g, '').replace(',', '.')
+          const n = Number(cleaned)
+          if (!isNaN(n)) value = n
+        }
+        // Skip only truly empty cells; a cell whose value/formula is 0 still
+        // counts (so a zero total reconciles against a zero sum).
+        if (value === 0 && !formula && (raw === null || raw === undefined || raw === '')) continue
+        sheetTotalsFromSheet.set(`${total.classId}:${m}`, { value, formula: formula ?? undefined })
+      }
+    }
+
+    // 2. Reconstruct per (classId, month) from the extracted transactions.
+    const txByClassMonth = new Map<string, number>()
     for (const tx of transactions) {
       if (tx.sheetName !== sheetName) continue
-      const key = txKey(tx.itemId, tx.month)
-      txByItemMonth.set(key, (txByItemMonth.get(key) ?? 0) + tx.value)
+      const key = `${tx.classId}:${tx.month}`
+      txByClassMonth.set(key, (txByClassMonth.get(key) ?? 0) + tx.value)
     }
-    const rec = reconcileSheet(sheetName, diag.year ?? 0, sheetValues, txByItemMonth)
+
+    // 3. Compare — target diff = R$ 0,00 per row.
+    const rec = reconcileSheet(sheetName, diag.year ?? 0, sheetTotalsFromSheet, txByClassMonth)
     reconciliations.push(rec)
   }
 

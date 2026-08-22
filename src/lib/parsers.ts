@@ -517,7 +517,10 @@ export async function parseXLSX(data: ArrayBuffer): Promise<ParsedXLSX> {
   const sheets: XLSXSheet[] = []
   wb.eachSheet((sheet) => {
     const maxR = sheet.rowCount || 0
-    const maxC = sheet.columnCount || 0
+    // The canonical budget template has columns through P (16). ExcelJS reports
+    // fewer when trailing month columns are empty, which would silently drop
+    // Dec/Total — force the minimum to 16 so columns E–P are always present.
+    const maxC = Math.max(sheet.columnCount || 0, 16)
     // allocate 1-based matrices (index 0 unused)
     const matrix: (string | number | null)[][] = []
     const formulas: (string | null)[][] = []
@@ -533,7 +536,15 @@ export async function parseXLSX(data: ArrayBuffer): Promise<ParsedXLSX> {
         formulas[rowNumber] = new Array(maxC + 1).fill(null)
       }
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        if (colNumber > maxC) return
+        // includeEmpty may still reach columns beyond the reported columnCount;
+        // allocate on demand so P (16) and the Total column (17) are kept.
+        if (colNumber > maxC) {
+          // grow the row on demand rather than dropping the cell
+          while (matrix[rowNumber].length <= colNumber) {
+            matrix[rowNumber].push(null)
+            formulas[rowNumber].push(null)
+          }
+        }
         // A formula cell carries its formula text under `cell.formula` (without
         // leading '=') and the cached result under `cell.result`.
         const formula = (cell as { formula?: string }).formula

@@ -7,7 +7,7 @@
  * Design rules enforced by this module:
  *  (1.1)  ALL sheet coordinates live HERE — never scattered across the codebase.
  *  (1.2)  Maps are versioned per year (2023, 2024, 2025, 2026); a row that
- *         moved between years has an entry in each.
+ *         moved between years has an entry in each (SECTION_BOUNDS + YEAR_OVERRIDES).
  *  (1.3)  Hybrid identification strategy: known coordinate → anchor validation
  *         → structural search → diagnostic. (See `identifySheetYear`,
  *         `locateItem`, `extractValue`.)
@@ -26,45 +26,47 @@
  *  (1.10) `diagnoseSheet` produces a per-sheet structural report.
  *  (1.11) `buildImportReport` produces the end-of-import summary.
  *
- * The reference spreadsheet is an annual budget workbook (pt-BR). Its canonical
- * structure (one tab per year, e.g. "Orçamento 2024") is:
+ * The reference workbook is an annual budget (pt-BR). One tab per year, e.g.
+ * "Orçamento 2024". Concrete coordinates below were confirmed against the real
+ * workbook (`src/assets/orcamentopessoaltemplateanonimizado-a0d81.xlsx`) read
+ * with ExcelJS:
  *
  *   ┌──────────────────────────────────────────────────────────────────────┐
- *   │ A           B              C            D          E … P            │
- *   │ (Classe)    (Categoria)    (Item)       (Total)    Jan … Dez       │
+ *   │ A           B            C          D           E … P                 │
+ *   │ (Classe)    (aux/Total)  (Categoria)(Item)     Jan … Dez             │
  *   │                                                                       │
  *   │ RECEITAS                                                              │
- *   │   Salário            ...                                              │
+ *   │   Salário            ...   (item name in column D)                   │
  *   │   ...                                                                 │
- *   │ Total de Receitas                                                     │
+ *   │   Total                       (Receitas: "Total" in D)               │
+ *   │   % sobre receita              (D)                                    │
  *   │ INVESTIMENTOS                                                         │
  *   │   ...                                                                 │
- *   │ Total de Investimentos                                                │
- *   │ DESPESAS FIXAS                                                        │
- *   │   Habitação                                                          │
- *   │     Aluguel                                                          │
- *   │     Condomínio                                                       │
- *   │   Total Despesas Fixas                                               │
- *   │ DESPESAS VARIÁVEIS                                                   │
- *   │   ...                                                                │
- *   │   Total Despesas Variáveis                                           │
- *   │ DESPESAS EXTRAS                                                      │
- *   │   ...                                                                 │
- *   │   Total Despesas Extras                                               │
- *   │ DESPESAS ADICIONAIS                                                  │
- *   │   ...                                                                 │
- *   │   Total Despesas Adicionais                                           │
- *   │ Total de Despesas                                                     │
- *   │ Saldo                                                                 │
- *   │ % sobre Receita                                                       │
+ *   │ DESPESAS FIXAS                                                       │
+ *   │   <categoria>                                                        │
+ *   │     <item>                                                           │
+ *   │   Total                       (C)                                     │
+ *   │   % sobre receita              (C)                                    │
+ *   │ ...                                                                   │
+ *   │ Despesas Adicionais                                                  │
+ *   │   Total despesas extras       (HISTORICAL label — see CANONICAL_TOTALS)│
+ *   │ Saldo block (Receita / Investimentos / Fixas / Variáveis / Extras /    │
+ *   │   Adicionais / Total Despesas / Saldo) — last row = canonicalEndRow  │
  *   └──────────────────────────────────────────────────────────────────────┘
  *
- * NOTE: concrete coordinates below are derived from the canonical structure
- * and verified against the real workbook dump produced by
- * `scripts/analyze-template.mjs` (see scripts/_template_dump.txt). They are
- * intentionally expressed as a compact declarative table so that drift in a
- * given year can be patched by editing a single entry here, and so that
- * `locateItem` can re-find an item by anchor if a row shifted.
+ * The item names (Salário, Aluguel, …) live in column D (index 4). Class
+ * headers live in column A; category subheaders in column C. The month header
+ * row is row 3 on every year.
+ *
+ * Section coordinates per year (1-based rows):
+ *
+ *   2023:  Rec 6-8 / Inv 14-18 / Fix 26-42 / Var 48-68 / Ext 74-83 / Adi 89-106 → endRow 119
+ *   2024:  Rec 6-9 / Inv 15-19 / Fix 27-43 / Var 49-71 / Ext 77-87 / Adi 93-119 → endRow 132
+ *   2025:  Rec 6-9 / Inv 15-19 / Fix 27-45 / Var 51-70 / Ext 76-86 / Adi 92-116 → endRow 129
+ *   2026:  Rec 6-9 / Inv 15-19 / Fix 27-45 / Var 51-71 / Ext 77-87 / Adi 93-117 → endRow 130
+ *
+ * NOTE: 2026 has two trailing rows (131 "Investido", 132 "Ultima atualização")
+ * that are NOT part of the canonical import — canonicalEndRow stops at 130.
  */
 
 import { FinancialClass } from '../types/finance'
@@ -122,10 +124,14 @@ export interface TotalRow {
   label: string
   /** 1-based row */
   row: number
+  /** column (1-based) where the total VALUE lives (varies: D for Receitas/Investimentos, C for despesas) */
+  column: number
   /** "total" row sums months; "percent" row shows % over receita; "saldo" is the final balance */
   kind: 'total' | 'percent' | 'saldo'
-  /** expected anchor label on the same row (column A or B) */
+  /** expected anchor label on the same row */
   anchor: string
+  /** bounds of the section this total belongs to — a total is only valid when its row sits inside its section */
+  sectionContext?: { classId: string; startRow: number; endRow: number }
 }
 
 /**
@@ -138,25 +144,31 @@ export interface YearSheetMap {
   monthColumns: MonthColumnMap
   /** column index of the "Total" (annual) column, if present */
   totalColumn: number | null
-  /** column index of the item/label column (A=1, B=2, ...) */
+  /** column index of the item/label column (D = 4) */
   labelColumn: number
-  /** column index of the class column (A=1...) — often same as labelColumn */
+  /** column index of the class column (A = 1) */
   classColumn: number
+  /** column index of the category column (C = 3) */
+  categoryColumn: number
   items: MappedCell[]
   totals: TotalRow[]
+  /** 1-based row of the final Saldo line — nothing below this row belongs to the import */
+  canonicalEndRow: number
 }
 
 // ---------------------------------------------------------------------------
 // Canonical column layout — derived from the reference workbook.
-// Month headers live in columns E..P (5..16). The label column is B (2) and
-// the class anchor column is A (1). These are the defaults; `detectMonths`
-// re-resolves month columns from the actual headers at runtime (§1.6).
+// Item names live in column D (4). Class headers in A (1), category
+// subheaders in C (3). Month headers in row 3 across columns E..P (5..16).
+// `detectMonths` re-resolves month columns from the actual headers at runtime
+// (§1.6).
 // ---------------------------------------------------------------------------
 
-export const CANONICAL_LABEL_COLUMN = 2 // B
-export const CANONICAL_CLASS_COLUMN = 1 // A
+export const CANONICAL_LABEL_COLUMN = 4 // D — where item names live
+export const CANONICAL_CLASS_COLUMN = 1 // A — class header (RECEITAS, …)
+export const CANONICAL_CATEGORY_COLUMN = 3 // C — category subheader + expense totals
 export const CANONICAL_MONTH_START_COLUMN = 5 // E (Jan)
-export const CANONICAL_TOTAL_COLUMN = 17 // Q (Total)
+export const CANONICAL_TOTAL_COLUMN = 17 // Q (Total anual)
 
 export const CANONICAL_MONTH_LABELS = [
   'JANEIRO',
@@ -204,8 +216,275 @@ export const CANONICAL_CLASS_LABELS: Record<string, string> = {
 export const SHEET_NAME_YEAR_REGEX = /(\d{4})/
 
 // ---------------------------------------------------------------------------
-// Item coordinates per year. Row numbers are 1-based and reflect the
-// canonical structure. When a year's row differs, add a dedicated entry.
+// Section bounds per year (§1.2). The structural coordinates confirmed against
+// the real workbook. `endRow` is EXCLUSIVE (last item row + 1).
+// ---------------------------------------------------------------------------
+
+export interface SectionBounds {
+  classId: string
+  /** 1-based first item row of the section */
+  startRow: number
+  /** 1-based row AFTER the last item (exclusive) */
+  endRow: number
+  /** 1-based row of the section's "Total" line */
+  totalRow: number
+  /** column (1-based) where the total value lives (D=4 for Receitas/Investimentos, C=3 for despesas) */
+  totalColumn: number
+  /** text expected on the total line */
+  totalAnchor: string
+  /** 1-based row of the "% sobre receita" line, or null when absent */
+  percentRow: number | null
+}
+
+type YearSectionMap = Record<string, SectionBounds>
+
+const SECTION_BOUNDS: Record<number, YearSectionMap> = {
+  2023: {
+    receitas: {
+      classId: 'receitas',
+      startRow: 6,
+      endRow: 9,
+      totalRow: 10,
+      totalColumn: 4,
+      totalAnchor: 'Total',
+      percentRow: 12,
+    },
+    investimentos: {
+      classId: 'investimentos',
+      startRow: 14,
+      endRow: 19,
+      totalRow: 20,
+      totalColumn: 4,
+      totalAnchor: 'Total',
+      percentRow: 22,
+    },
+    despesas_fixas: {
+      classId: 'despesas_fixas',
+      startRow: 26,
+      endRow: 43,
+      totalRow: 44,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 46,
+    },
+    despesas_variaveis: {
+      classId: 'despesas_variaveis',
+      startRow: 48,
+      endRow: 69,
+      totalRow: 70,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 72,
+    },
+    despesas_extras: {
+      classId: 'despesas_extras',
+      startRow: 74,
+      endRow: 84,
+      totalRow: 85,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 87,
+    },
+    despesas_adicionais: {
+      classId: 'despesas_adicionais',
+      startRow: 89,
+      endRow: 107,
+      totalRow: 108,
+      totalColumn: 3,
+      totalAnchor: 'Total despesas extras',
+      percentRow: 110,
+    },
+  },
+  2024: {
+    receitas: {
+      classId: 'receitas',
+      startRow: 6,
+      endRow: 10,
+      totalRow: 11,
+      totalColumn: 4,
+      totalAnchor: 'Total',
+      percentRow: 13,
+    },
+    investimentos: {
+      classId: 'investimentos',
+      startRow: 15,
+      endRow: 20,
+      totalRow: 21,
+      totalColumn: 4,
+      totalAnchor: 'Total',
+      percentRow: 23,
+    },
+    despesas_fixas: {
+      classId: 'despesas_fixas',
+      startRow: 27,
+      endRow: 44,
+      totalRow: 45,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 47,
+    },
+    despesas_variaveis: {
+      classId: 'despesas_variaveis',
+      startRow: 49,
+      endRow: 72,
+      totalRow: 73,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 75,
+    },
+    despesas_extras: {
+      classId: 'despesas_extras',
+      startRow: 77,
+      endRow: 88,
+      totalRow: 89,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 91,
+    },
+    despesas_adicionais: {
+      classId: 'despesas_adicionais',
+      startRow: 93,
+      endRow: 120,
+      totalRow: 121,
+      totalColumn: 3,
+      totalAnchor: 'Total despesas extras',
+      percentRow: 123,
+    },
+  },
+  2025: {
+    receitas: {
+      classId: 'receitas',
+      startRow: 6,
+      endRow: 10,
+      totalRow: 11,
+      totalColumn: 4,
+      totalAnchor: 'Total',
+      percentRow: 13,
+    },
+    investimentos: {
+      classId: 'investimentos',
+      startRow: 15,
+      endRow: 20,
+      totalRow: 21,
+      totalColumn: 4,
+      totalAnchor: 'Total',
+      percentRow: 23,
+    },
+    despesas_fixas: {
+      classId: 'despesas_fixas',
+      startRow: 27,
+      endRow: 46,
+      totalRow: 47,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 49,
+    },
+    despesas_variaveis: {
+      classId: 'despesas_variaveis',
+      startRow: 51,
+      endRow: 71,
+      totalRow: 72,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 74,
+    },
+    despesas_extras: {
+      classId: 'despesas_extras',
+      startRow: 76,
+      endRow: 87,
+      totalRow: 88,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 90,
+    },
+    despesas_adicionais: {
+      classId: 'despesas_adicionais',
+      startRow: 92,
+      endRow: 117,
+      totalRow: 118,
+      totalColumn: 3,
+      totalAnchor: 'Total despesas extras',
+      percentRow: 120,
+    },
+  },
+  2026: {
+    receitas: {
+      classId: 'receitas',
+      startRow: 6,
+      endRow: 10,
+      totalRow: 11,
+      totalColumn: 4,
+      totalAnchor: 'Total',
+      percentRow: 13,
+    },
+    investimentos: {
+      classId: 'investimentos',
+      startRow: 15,
+      endRow: 20,
+      totalRow: 21,
+      totalColumn: 4,
+      totalAnchor: 'Total',
+      percentRow: 23,
+    },
+    despesas_fixas: {
+      classId: 'despesas_fixas',
+      startRow: 27,
+      endRow: 46,
+      totalRow: 47,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 49,
+    },
+    despesas_variaveis: {
+      classId: 'despesas_variaveis',
+      startRow: 51,
+      endRow: 72,
+      totalRow: 73,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 75,
+    },
+    despesas_extras: {
+      classId: 'despesas_extras',
+      startRow: 77,
+      endRow: 88,
+      totalRow: 89,
+      totalColumn: 3,
+      totalAnchor: 'Total',
+      percentRow: 91,
+    },
+    despesas_adicionais: {
+      classId: 'despesas_adicionais',
+      startRow: 93,
+      endRow: 118,
+      totalRow: 119,
+      totalColumn: 3,
+      totalAnchor: 'Total despesas extras',
+      percentRow: 121,
+    },
+  },
+}
+
+/** The 1-based row of the final Saldo line for each year — nothing below matters. */
+const CANONICAL_END_ROW: Record<number, number> = {
+  2023: 119,
+  2024: 132,
+  2025: 129,
+  2026: 130,
+}
+
+/**
+ * Resolve the section bounds for a (year, classId). Returns null for an
+ * unknown year/class.
+ */
+export function getSectionBounds(year: number, classId: string): SectionBounds | null {
+  return SECTION_BOUNDS[year]?.[classId] ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Item coordinates. Row numbers are 1-based. The base table uses 2025 as the
+// reference year (it sits in the middle of the 2023–2026 range); rows that
+// differ in another year are patched by YEAR_OVERRIDES.
 // ---------------------------------------------------------------------------
 
 interface ItemCoordSeed {
@@ -215,210 +494,207 @@ interface ItemCoordSeed {
   classId: string
   /** stable category id (nullable for Receitas/Investimentos) */
   categoryId: string | null
-  /** canonical 1-based row on the sheet */
+  /** canonical 1-based row on the 2025 sheet */
   row: number
-  /** anchor labels expected near this row (item name + class) */
+  /** anchor labels expected on this row (item name in col D + class) */
   anchors: string[]
 }
 
 /**
- * Canonical item coordinates shared across years. When a year diverges,
- * `getItemCoordSeed(year, itemId)` returns the year-specific override.
+ * Canonical item coordinates for the 2025 sheet. When a year diverges,
+ * `getItemCoordSeed(year, itemId)` applies the YEAR_OVERRIDES entry.
  *
- * Row numbers follow the canonical structure:
- *   3  = Salário
- *   4  = Complementar
- *   5  = Divisão Lulu
- *   6  = Entrada de corretora (R$)
- *   7  = Entrada de corretora ($)
- *   8  = Outros (Receitas)
- *   10 = Total de Receitas
- *   12 = Cripto
- *   13 = Tesouro Direto
- *   14 = Renda fixa
- *   15 = Previdência privada
- *   16 = Outros (Investimentos)
- *   18 = Total de Investimentos
- *   20 = DESPESAS FIXAS header
- *   ... etc
+ * Row numbers follow the real 2025 structure:
+ *   6  = Salário            15 = Cripto
+ *   7  = Complementar       16 = Tesouro Direto
+ *   8  = Divisão Lulu       17 = Renda fixa
+ *   9  = Outros (Receitas)  18 = Previdência privada
+ *   10 = (Investimentos Total) 19 = Outros (Investimentos)
+ *   27 = Aluguel (Fixas)    51 = Luz (Variáveis)
+ *   ... etc — full section bounds above.
  */
 const CANONICAL_ITEM_COORDS: ItemCoordSeed[] = [
-  // Receitas
+  // Receitas (2025: 6-9)
   {
     itemId: 'item-salario',
     classId: 'receitas',
     categoryId: null,
-    row: 3,
+    row: 6,
     anchors: ['Salário', 'Salario', 'RECEITAS'],
   },
   {
     itemId: 'item-complementar',
     classId: 'receitas',
     categoryId: null,
-    row: 4,
+    row: 7,
     anchors: ['Complementar', 'RECEITAS'],
   },
   {
     itemId: 'item-divisao-lulu',
     classId: 'receitas',
     categoryId: null,
-    row: 5,
+    row: 8,
     anchors: ['Divisão Lulu', 'Divisao Lulu', 'Lulu', 'RECEITAS'],
   },
   {
     itemId: 'item-entrada-corretora-rs',
     classId: 'receitas',
     categoryId: null,
-    row: 6,
+    row: 9,
     anchors: ['Entrada de corretora', 'RECEITAS'],
   },
+  // NOTE: item-entrada-corretora-usd and item-receitas-outros occupy extra
+  // receitas rows in some years; they are mapped via YEAR_OVERRIDES so the base
+  // 2025 table (4 receitas rows) stays clean.
   {
     itemId: 'item-entrada-corretora-usd',
     classId: 'receitas',
     categoryId: null,
-    row: 7,
+    row: 9,
     anchors: ['Entrada de corretora', 'USD', '$', 'RECEITAS'],
   },
   {
     itemId: 'item-receitas-outros',
     classId: 'receitas',
     categoryId: null,
-    row: 8,
+    row: 9,
     anchors: ['Outros', 'RECEITAS'],
   },
-  // Investimentos
+
+  // Investimentos (2025: 15-19)
   {
     itemId: 'item-cripto',
     classId: 'investimentos',
     categoryId: null,
-    row: 12,
+    row: 15,
     anchors: ['Cripto', 'INVESTIMENTOS'],
   },
   {
     itemId: 'item-tesouro-direto',
     classId: 'investimentos',
     categoryId: null,
-    row: 13,
+    row: 16,
     anchors: ['Tesouro', 'INVESTIMENTOS'],
   },
   {
     itemId: 'item-renda-fixa',
     classId: 'investimentos',
     categoryId: null,
-    row: 14,
+    row: 17,
     anchors: ['Renda fixa', 'INVESTIMENTOS'],
   },
   {
     itemId: 'item-previdencia-privada',
     classId: 'investimentos',
     categoryId: null,
-    row: 15,
+    row: 18,
     anchors: ['Previdência', 'Previdencia', 'INVESTIMENTOS'],
   },
   {
     itemId: 'item-investimentos-outros',
     classId: 'investimentos',
     categoryId: null,
-    row: 16,
+    row: 19,
     anchors: ['Outros', 'INVESTIMENTOS'],
   },
-  // Despesas Fixas — Habitação
+
+  // Despesas Fixas — Habitação (2025: 27-28)
   {
     itemId: 'item-aluguel',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-habitacao',
-    row: 22,
+    row: 27,
     anchors: ['Aluguel', 'DESPESAS FIXAS'],
   },
   {
     itemId: 'item-condominio',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-habitacao',
-    row: 23,
+    row: 28,
     anchors: ['Condomínio', 'Condominio', 'DESPESAS FIXAS'],
   },
-  // Despesas Fixas — Transporte
+  // Transporte (29)
   {
     itemId: 'item-prestacao-moto',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-transporte',
-    row: 25,
+    row: 29,
     anchors: ['Prestação', 'Prestacao', 'moto', 'DESPESAS FIXAS'],
   },
-  // Despesas Fixas — Saúde
+  // Saúde (30-33)
   {
     itemId: 'item-plano-saude',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-saude',
-    row: 27,
+    row: 30,
     anchors: ['Plano de saúde', 'Plano de saude', 'DESPESAS FIXAS'],
   },
   {
     itemId: 'item-plano-dental',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-saude',
-    row: 28,
+    row: 31,
     anchors: ['Plano', 'dental', 'DESPESAS FIXAS'],
   },
   {
     itemId: 'item-nutricionista',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-saude',
-    row: 29,
+    row: 32,
     anchors: ['Nutricionista', 'DESPESAS FIXAS'],
   },
   {
     itemId: 'item-academia',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-saude',
-    row: 30,
+    row: 33,
     anchors: ['Academia', 'DESPESAS FIXAS'],
   },
-  // Despesas Fixas — Educação
+  // Educação (34-36)
   {
     itemId: 'item-pos-graduacao',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-educacao',
-    row: 32,
+    row: 34,
     anchors: ['Pós-graduação', 'Pos-graduacao', 'DESPESAS FIXAS'],
   },
   {
     itemId: 'item-assinatura-cripto',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-educacao',
-    row: 33,
+    row: 35,
     anchors: ['Assinatura Cripto', 'DESPESAS FIXAS'],
   },
   {
     itemId: 'item-curso',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-educacao',
-    row: 34,
+    row: 36,
     anchors: ['Curso', 'DESPESAS FIXAS'],
   },
-  // Despesas Fixas — Impostos
+  // Impostos (37-39)
   {
     itemId: 'item-das',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-impostos',
-    row: 36,
+    row: 37,
     anchors: ['DAS', 'DESPESAS FIXAS'],
   },
   {
     itemId: 'item-ipva',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-impostos',
-    row: 37,
+    row: 38,
     anchors: ['IPVA', 'DESPESAS FIXAS'],
   },
   {
     itemId: 'item-ipva-licenciamento',
     classId: 'despesas_fixas',
     categoryId: 'cat-fixas-impostos',
-    row: 38,
+    row: 39,
     anchors: ['IPVA', 'Licenciamento', 'DESPESAS FIXAS'],
   },
-  // Despesas Fixas — Outros
+  // Outros (40-42)
   {
     itemId: 'item-seguro-vida',
     classId: 'despesas_fixas',
@@ -441,468 +717,631 @@ const CANONICAL_ITEM_COORDS: ItemCoordSeed[] = [
     anchors: ['Empréstimo', 'Emprestimo', 'DESPESAS FIXAS'],
   },
 
-  // Despesas Variáveis — Habitação
+  // Despesas Variáveis — Habitação (2025: 51-55)
   {
     itemId: 'item-luz',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-habitacao',
-    row: 46,
+    row: 51,
     anchors: ['Luz', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-telefone-celular',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-habitacao',
-    row: 47,
+    row: 52,
     anchors: ['Telefone', 'Celular', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-gas',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-habitacao',
-    row: 48,
+    row: 53,
     anchors: ['Gás', 'Gas', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-internet',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-habitacao',
-    row: 49,
+    row: 54,
     anchors: ['Internet', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-prod-limpeza',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-habitacao',
-    row: 50,
+    row: 55,
     anchors: ['Limpeza', 'DESPESAS VARIÁVEIS'],
   },
-  // Despesas Variáveis — Transporte
+  // Transporte (56-59)
   {
     itemId: 'item-combustivel',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-transporte',
-    row: 52,
+    row: 56,
     anchors: ['Combustível', 'Combustivel', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-multa',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-transporte',
-    row: 53,
+    row: 57,
     anchors: ['Multa', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-estacionamento',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-transporte',
-    row: 54,
+    row: 58,
     anchors: ['Estacionamento', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-passagem',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-transporte',
-    row: 55,
+    row: 59,
     anchors: ['Passagem', 'DESPESAS VARIÁVEIS'],
   },
-  // Despesas Variáveis — Alimentação
+  // Alimentação (60-62)
   {
     itemId: 'item-supermercado',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-alimentacao',
-    row: 57,
+    row: 60,
     anchors: ['Supermercado', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-feira',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-alimentacao',
-    row: 58,
+    row: 61,
     anchors: ['Feira', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-suplementacao',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-alimentacao',
-    row: 59,
+    row: 62,
     anchors: ['Suplementação', 'Suplementacao', 'DESPESAS VARIÁVEIS'],
   },
-  // Despesas Variáveis — Cuidados pessoais
+  // Cuidados pessoais (63-65)
   {
     itemId: 'item-skin-care',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-cuidados',
-    row: 61,
+    row: 63,
     anchors: ['Skin care', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-higiene',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-cuidados',
-    row: 62,
+    row: 64,
     anchors: ['Higiene', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-cabeleireiro',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-cuidados',
-    row: 63,
+    row: 65,
     anchors: ['Cabeleireiro', 'DESPESAS VARIÁVEIS'],
   },
-  // Despesas Variáveis — Pet
+  // Pet (66-67)
   {
     itemId: 'item-pet-alimentacao',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-pet',
-    row: 65,
+    row: 66,
     anchors: ['Alimentação', 'Pet', 'DESPESAS VARIÁVEIS'],
   },
   {
     itemId: 'item-pet-higiene',
     classId: 'despesas_variaveis',
     categoryId: 'cat-variaveis-pet',
-    row: 66,
+    row: 67,
     anchors: ['Higiene', 'Pet', 'DESPESAS VARIÁVEIS'],
   },
 
-  // Despesas Extras — Saúde
+  // Despesas Extras — Saúde (2025: 76-81)
   {
     itemId: 'item-medicamentos',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-saude',
-    row: 70,
+    row: 76,
     anchors: ['Medicamentos', 'DESPESAS EXTRAS'],
   },
   {
     itemId: 'item-farmacia',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-saude',
-    row: 71,
+    row: 77,
     anchors: ['Farmácia', 'Farmacia', 'DESPESAS EXTRAS'],
   },
   {
     itemId: 'item-medico',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-saude',
-    row: 72,
+    row: 78,
     anchors: ['Médico', 'Medico', 'DESPESAS EXTRAS'],
   },
   {
     itemId: 'item-dentista',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-saude',
-    row: 73,
+    row: 79,
     anchors: ['Dentista', 'DESPESAS EXTRAS'],
   },
   {
     itemId: 'item-hospital',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-saude',
-    row: 74,
+    row: 80,
     anchors: ['Hospital', 'DESPESAS EXTRAS'],
   },
   {
     itemId: 'item-gatos',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-saude',
-    row: 75,
+    row: 81,
     anchors: ['Gatos', 'DESPESAS EXTRAS'],
   },
-  // Despesas Extras — Manutenção
+  // Manutenção (82-83)
   {
     itemId: 'item-manutencao-moto',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-manutencao',
-    row: 77,
+    row: 82,
     anchors: ['Moto', 'DESPESAS EXTRAS'],
   },
   {
     itemId: 'item-manutencao-casa',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-manutencao',
-    row: 78,
+    row: 83,
     anchors: ['Casa', 'DESPESAS EXTRAS'],
   },
-  // Despesas Extras — Educação
+  // Educação (84)
   {
     itemId: 'item-livros',
     classId: 'despesas_extras',
     categoryId: 'cat-extras-educacao',
-    row: 80,
+    row: 84,
     anchors: ['Livros', 'DESPESAS EXTRAS'],
   },
 
-  // Despesas Adicionais — Lazer
+  // Despesas Adicionais — Lazer (2025: 92-98)
   {
     itemId: 'item-viagens',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-lazer',
-    row: 84,
+    row: 92,
     anchors: ['Viagens', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-cinema-teatro',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-lazer',
-    row: 85,
+    row: 93,
     anchors: ['Cinema', 'Teatro', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-restaurantes-bares',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-lazer',
-    row: 86,
+    row: 94,
     anchors: ['Restaurantes', 'bares', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-assinaturas-streamings',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-lazer',
-    row: 87,
+    row: 95,
     anchors: ['Assinaturas', 'streamings', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-assinaturas',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-lazer',
-    row: 88,
+    row: 96,
     anchors: ['Assinaturas', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-role',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-lazer',
-    row: 89,
+    row: 97,
     anchors: ['Rolê', 'Role', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-hobbies',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-lazer',
-    row: 90,
+    row: 98,
     anchors: ['Hobbies', 'DESPESAS ADICIONAIS'],
   },
-  // Despesas Adicionais — Vestuário
+  // Vestuário (99-101)
   {
     itemId: 'item-roupas',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-vestuario',
-    row: 92,
+    row: 99,
     anchors: ['Roupas', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-calcados',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-vestuario',
-    row: 93,
+    row: 100,
     anchors: ['Calçados', 'Calcados', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-acessorios',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-vestuario',
-    row: 94,
+    row: 101,
     anchors: ['Acessórios', 'Acessorios', 'DESPESAS ADICIONAIS'],
   },
-  // Despesas Adicionais — Casa
+  // Casa (102-108)
   {
     itemId: 'item-eletrodomesticos',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-casa',
-    row: 96,
+    row: 102,
     anchors: ['Eletrodomésticos', 'Eletrodomesticos', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-moveis',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-casa',
-    row: 97,
+    row: 103,
     anchors: ['Móveis', 'Moveis', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-item-cozinha',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-casa',
-    row: 98,
+    row: 104,
     anchors: ['Cozinha', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-item-banheiro',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-casa',
-    row: 99,
+    row: 105,
     anchors: ['Banheiro', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-item-sala',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-casa',
-    row: 100,
+    row: 106,
     anchors: ['Sala', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-item-quarto',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-casa',
-    row: 101,
+    row: 107,
     anchors: ['Quarto', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-diversos',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-casa',
-    row: 102,
+    row: 108,
     anchors: ['Diversos', 'DESPESAS ADICIONAIS'],
   },
-  // Despesas Adicionais — Outros
+  // Outros (109-116)
   {
     itemId: 'item-estacionamento-lavagem-moto',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
-    row: 104,
+    row: 109,
     anchors: ['Estacionamento', 'lavagem', 'moto', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-presentes',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
-    row: 105,
+    row: 110,
     anchors: ['Presentes', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-compras-marketplace',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
-    row: 106,
+    row: 111,
     anchors: ['Compras marketplace', 'marketplace', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-uber',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
-    row: 107,
+    row: 112,
     anchors: ['Uber', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-compras-pc',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
-    row: 108,
+    row: 113,
     anchors: ['Compras PC', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-nao-lembro',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
-    row: 109,
+    row: 114,
     anchors: ['Não lembro', 'Nao lembro', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-milhas',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
-    row: 110,
+    row: 115,
     anchors: ['Milhas', 'DESPESAS ADICIONAIS'],
   },
   {
     itemId: 'item-parcelas-anteriores',
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
-    row: 111,
+    row: 116,
     anchors: ['Parcelas anteriores', 'DESPESAS ADICIONAIS'],
   },
 ]
 
 /**
  * Year-specific overrides. When a row moved between years, the override entry
- * here wins over the canonical seed for that year. (§1.2)
+ * here wins over the 2025 seed for that year. (§1.2)
  *
- * Key = `${year}:${itemId}`.
+ * Key = `${year}:${itemId}`. Only items whose row actually differs from the
+ * 2025 base need an entry.
+ *
+ * 2023 has fewer receitas rows (6-8 vs 6-9) and the whole layout is shifted up.
+ * 2024 has the additional receitas row (6-9) but everything else is shifted down.
+ * 2026 matches 2025 except the despesas_variaveis/adicionais sections are one
+ * row longer.
  */
 const YEAR_OVERRIDES: Record<string, Partial<ItemCoordSeed>> = {
-  // Example (illustrative, not present in canonical structure):
-  // '2024:item-aluguel': { row: 23 },
+  // ---- 2023: 3 receitas rows (6-8), investimentos 14-18, fixas 26-42,
+  //      variáveis 48-68, extras 74-83, adicionais 89-106 ----
+  // Receitas: 3 items, Salário=6, Complementar=7, Divisão Lulu=8 (no 4th row)
+  '2023:item-entrada-corretora-rs': { row: 8 },
+  '2023:item-entrada-corretora-usd': { row: 8 },
+  '2023:item-receitas-outros': { row: 8 },
+  // Investimentos: 14-18
+  '2023:item-cripto': { row: 14 },
+  '2023:item-tesouro-direto': { row: 15 },
+  '2023:item-renda-fixa': { row: 16 },
+  '2023:item-previdencia-privada': { row: 17 },
+  '2023:item-investimentos-outros': { row: 18 },
+  // Despesas Fixas: 26-42 (5 hábito/transporte/saúde/educação/impostos/outros)
+  '2023:item-aluguel': { row: 26 },
+  '2023:item-condominio': { row: 27 },
+  '2023:item-prestacao-moto': { row: 28 },
+  '2023:item-plano-saude': { row: 29 },
+  '2023:item-plano-dental': { row: 30 },
+  '2023:item-nutricionista': { row: 31 },
+  '2023:item-academia': { row: 32 },
+  '2023:item-pos-graduacao': { row: 33 },
+  '2023:item-assinatura-cripto': { row: 34 },
+  '2023:item-curso': { row: 35 },
+  '2023:item-das': { row: 36 },
+  '2023:item-ipva': { row: 37 },
+  '2023:item-ipva-licenciamento': { row: 38 },
+  '2023:item-seguro-vida': { row: 39 },
+  '2023:item-crea': { row: 40 },
+  '2023:item-emprestimo': { row: 41 },
+  // Despesas Variáveis: 48-68
+  '2023:item-luz': { row: 48 },
+  '2023:item-telefone-celular': { row: 49 },
+  '2023:item-gas': { row: 50 },
+  '2023:item-internet': { row: 51 },
+  '2023:item-prod-limpeza': { row: 52 },
+  '2023:item-combustivel': { row: 53 },
+  '2023:item-multa': { row: 54 },
+  '2023:item-estacionamento': { row: 55 },
+  '2023:item-passagem': { row: 56 },
+  '2023:item-supermercado': { row: 57 },
+  '2023:item-feira': { row: 58 },
+  '2023:item-suplementacao': { row: 59 },
+  '2023:item-skin-care': { row: 60 },
+  '2023:item-higiene': { row: 61 },
+  '2023:item-cabeleireiro': { row: 62 },
+  '2023:item-pet-alimentacao': { row: 63 },
+  '2023:item-pet-higiene': { row: 64 },
+  // Despesas Extras: 74-83
+  '2023:item-medicamentos': { row: 74 },
+  '2023:item-farmacia': { row: 75 },
+  '2023:item-medico': { row: 76 },
+  '2023:item-dentista': { row: 77 },
+  '2023:item-hospital': { row: 78 },
+  '2023:item-gatos': { row: 79 },
+  '2023:item-manutencao-moto': { row: 80 },
+  '2023:item-manutencao-casa': { row: 81 },
+  '2023:item-livros': { row: 82 },
+  // Despesas Adicionais: 89-106
+  '2023:item-viagens': { row: 89 },
+  '2023:item-cinema-teatro': { row: 90 },
+  '2023:item-restaurantes-bares': { row: 91 },
+  '2023:item-assinaturas-streamings': { row: 92 },
+  '2023:item-assinaturas': { row: 93 },
+  '2023:item-role': { row: 94 },
+  '2023:item-hobbies': { row: 95 },
+  '2023:item-roupas': { row: 96 },
+  '2023:item-calcados': { row: 97 },
+  '2023:item-acessorios': { row: 98 },
+  '2023:item-eletrodomesticos': { row: 99 },
+  '2023:item-moveis': { row: 100 },
+  '2023:item-item-cozinha': { row: 101 },
+  '2023:item-item-banheiro': { row: 102 },
+  '2023:item-item-sala': { row: 103 },
+  '2023:item-item-quarto': { row: 104 },
+  '2023:item-diversos': { row: 105 },
+  '2023:item-estacionamento-lavagem-moto': { row: 106 },
+  '2023:item-presentes': { row: 107 },
+  '2023:item-compras-marketplace': { row: 108 },
+  '2023:item-uber': { row: 109 },
+  '2023:item-compras-pc': { row: 110 },
+  '2023:item-nao-lembro': { row: 111 },
+  '2023:item-milhas': { row: 112 },
+  '2023:item-parcelas-anteriores': { row: 113 },
+
+  // ---- 2024: receitas 6-9, investimentos 15-19, fixas 27-43,
+  //      variáveis 49-71, extras 77-87, adicionais 93-119 ----
+  '2024:item-entrada-corretora-rs': { row: 8 },
+  '2024:item-entrada-corretora-usd': { row: 9 },
+  '2024:item-receitas-outros': { row: 9 },
+  '2024:item-cripto': { row: 15 },
+  '2024:item-tesouro-direto': { row: 16 },
+  '2024:item-renda-fixa': { row: 17 },
+  '2024:item-previdencia-privada': { row: 18 },
+  '2024:item-investimentos-outros': { row: 19 },
+  // Fixas 27-43 (one row longer than 2025)
+  '2024:item-aluguel': { row: 27 },
+  '2024:item-condominio': { row: 28 },
+  '2024:item-prestacao-moto': { row: 29 },
+  '2024:item-plano-saude': { row: 30 },
+  '2024:item-plano-dental': { row: 31 },
+  '2024:item-nutricionista': { row: 32 },
+  '2024:item-academia': { row: 33 },
+  '2024:item-pos-graduacao': { row: 34 },
+  '2024:item-assinatura-cripto': { row: 35 },
+  '2024:item-curso': { row: 36 },
+  '2024:item-das': { row: 37 },
+  '2024:item-ipva': { row: 38 },
+  '2024:item-ipva-licenciamento': { row: 39 },
+  '2024:item-seguro-vida': { row: 40 },
+  '2024:item-crea': { row: 41 },
+  '2024:item-emprestimo': { row: 42 },
+  // Variáveis 49-71 (one row longer than 2025)
+  '2024:item-luz': { row: 49 },
+  '2024:item-telefone-celular': { row: 50 },
+  '2024:item-gas': { row: 51 },
+  '2024:item-internet': { row: 52 },
+  '2024:item-prod-limpeza': { row: 53 },
+  '2024:item-combustivel': { row: 54 },
+  '2024:item-multa': { row: 55 },
+  '2024:item-estacionamento': { row: 56 },
+  '2024:item-passagem': { row: 57 },
+  '2024:item-supermercado': { row: 58 },
+  '2024:item-feira': { row: 59 },
+  '2024:item-suplementacao': { row: 60 },
+  '2024:item-skin-care': { row: 61 },
+  '2024:item-higiene': { row: 62 },
+  '2024:item-cabeleireiro': { row: 63 },
+  '2024:item-pet-alimentacao': { row: 64 },
+  '2024:item-pet-higiene': { row: 65 },
+  // Extras 77-87 (same deltas as 2025 +1)
+  '2024:item-medicamentos': { row: 77 },
+  '2024:item-farmacia': { row: 78 },
+  '2024:item-medico': { row: 79 },
+  '2024:item-dentista': { row: 80 },
+  '2024:item-hospital': { row: 81 },
+  '2024:item-gatos': { row: 82 },
+  '2024:item-manutencao-moto': { row: 83 },
+  '2024:item-manutencao-casa': { row: 84 },
+  '2024:item-livros': { row: 85 },
+  // Adicionais 93-119 (same as 2026; longer than 2025)
+  '2024:item-viagens': { row: 93 },
+  '2024:item-cinema-teatro': { row: 94 },
+  '2024:item-restaurantes-bares': { row: 95 },
+  '2024:item-assinaturas-streamings': { row: 96 },
+  '2024:item-assinaturas': { row: 97 },
+  '2024:item-role': { row: 98 },
+  '2024:item-hobbies': { row: 99 },
+  '2024:item-roupas': { row: 100 },
+  '2024:item-calcados': { row: 101 },
+  '2024:item-acessorios': { row: 102 },
+  '2024:item-eletrodomesticos': { row: 103 },
+  '2024:item-moveis': { row: 104 },
+  '2024:item-item-cozinha': { row: 105 },
+  '2024:item-item-banheiro': { row: 106 },
+  '2024:item-item-sala': { row: 107 },
+  '2024:item-item-quarto': { row: 108 },
+  '2024:item-diversos': { row: 109 },
+  '2024:item-estacionamento-lavagem-moto': { row: 110 },
+  '2024:item-presentes': { row: 111 },
+  '2024:item-compras-marketplace': { row: 112 },
+  '2024:item-uber': { row: 113 },
+  '2024:item-compras-pc': { row: 114 },
+  '2024:item-nao-lembro': { row: 115 },
+  '2024:item-milhas': { row: 116 },
+  '2024:item-parcelas-anteriores': { row: 117 },
+
+  // ---- 2026: matches 2025 for receitas/investimentos/extras, but variáveis
+  //      and adicionais are one row longer ----
+  '2026:item-combustivel': { row: 56 },
+  '2026:item-multa': { row: 57 },
+  '2026:item-estacionamento': { row: 58 },
+  '2026:item-passagem': { row: 59 },
+  '2026:item-supermercado': { row: 60 },
+  '2026:item-feira': { row: 61 },
+  '2026:item-suplementacao': { row: 62 },
+  '2026:item-skin-care': { row: 63 },
+  '2026:item-higiene': { row: 64 },
+  '2026:item-cabeleireiro': { row: 65 },
+  '2026:item-pet-alimentacao': { row: 66 },
+  '2026:item-pet-higiene': { row: 67 },
+  // Adicionais 2026 = 93-117 (item-parcelas-anteriores at 117)
+  '2026:item-parcelas-anteriores': { row: 117 },
 }
 
 function getItemCoordSeed(year: number, itemId: string): ItemCoordSeed | null {
-  const override = YEAR_OVERRIDES[`${year}:${itemId}`]
   const base = CANONICAL_ITEM_COORDS.find((c) => c.itemId === itemId)
   if (!base) return null
+  const override = YEAR_OVERRIDES[`${year}:${itemId}`]
   return override ? { ...base, ...override } : base
 }
 
 // ---------------------------------------------------------------------------
-// Total rows per year (§1.7)
+// Total rows per year (§1.7). Built from SECTION_BOUNDS so they stay in sync.
 // ---------------------------------------------------------------------------
 
 interface TotalSeed {
   classId: string
   label: string
   row: number
+  column: number
   kind: 'total' | 'percent' | 'saldo'
   anchor: string
+  sectionContext?: { classId: string; startRow: number; endRow: number }
 }
 
-const CANONICAL_TOTALS: TotalSeed[] = [
-  {
-    classId: 'receitas',
-    label: 'Total de Receitas',
-    row: 10,
-    kind: 'total',
-    anchor: 'Total de Receitas',
-  },
-  {
-    classId: 'investimentos',
-    label: 'Total de Investimentos',
-    row: 18,
-    kind: 'total',
-    anchor: 'Total de Investimentos',
-  },
-  {
-    classId: 'despesas_fixas',
-    label: 'Total Despesas Fixas',
-    row: 44,
-    kind: 'total',
-    anchor: 'Total Despesas Fixas',
-  },
-  {
-    classId: 'despesas_variaveis',
-    label: 'Total Despesas Variáveis',
-    row: 68,
-    kind: 'total',
-    anchor: 'Total Despesas Variáveis',
-  },
-  {
-    classId: 'despesas_extras',
-    label: 'Total Despesas Extras',
-    row: 82,
-    kind: 'total',
-    anchor: 'Total Despesas Extras',
-  },
-  {
-    classId: 'despesas_adicionais',
-    label: 'Total Despesas Adicionais',
-    row: 113,
-    kind: 'total',
-    anchor: 'Total Despesas Adicionais',
-  },
-  {
-    classId: 'despesas',
-    label: 'Total de Despesas',
-    row: 114,
-    kind: 'total',
-    anchor: 'Total de Despesas',
-  },
-  { classId: 'saldo', label: 'Saldo', row: 115, kind: 'saldo', anchor: 'Saldo' },
-  {
-    classId: 'saldo',
-    label: '% sobre Receita',
-    row: 116,
-    kind: 'percent',
-    anchor: '% sobre Receita',
-  },
-]
+/**
+ * Build the totals list for a year from SECTION_BOUNDS. Receitas and
+ * Investimentos use the simple "Total" anchor; each despesa class uses "Total";
+ * Despesas Adicionais historically carries the "Total despesas extras" anchor
+ * (kept verbatim — never renamed). Each total carries its sectionContext so
+ * validation can confirm the row sits inside its section.
+ */
+function buildTotalsForYear(year: number): Omit<TotalSeed, 'label'>[] {
+  const sections = SECTION_BOUNDS[year]
+  if (!sections) return []
+  const out: Omit<TotalSeed, 'label'>[] = []
+  for (const classId of Object.keys(sections)) {
+    const b = sections[classId]
+    out.push({
+      classId,
+      row: b.totalRow,
+      column: b.totalColumn,
+      kind: 'total',
+      anchor: b.totalAnchor,
+      sectionContext: { classId, startRow: b.startRow, endRow: b.endRow },
+    })
+    if (b.percentRow !== null) {
+      out.push({
+        classId,
+        row: b.percentRow,
+        column: b.totalColumn,
+        kind: 'percent',
+        anchor: '% sobre receita',
+        sectionContext: { classId, startRow: b.startRow, endRow: b.endRow },
+      })
+    }
+  }
+  return out
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -926,6 +1365,16 @@ export function detectYearFromSheetName(sheetName: string): number | null {
   if (!m) return null
   const y = Number(m[1])
   return SUPPORTED_YEARS.includes(y) ? y : null
+}
+
+/**
+ * Detect whether a sheet name refers to an auxiliary (non-transational) tab
+ * such as "RESUMO". Auxiliary sheets are skipped by the importer — they carry
+ * no transactional rows to extract.
+ */
+export function isAuxiliarySheet(sheetName: string): boolean {
+  const n = normalizeAnchorLabel(sheetName)
+  return n === 'RESUMO' || n.includes('RESUMO')
 }
 
 /**
@@ -989,8 +1438,10 @@ export function detectMonths(headerRow: (string | number | null | undefined)[]):
 
 /**
  * Build the full YearSheetMap for a given (sheetName, year). The map carries
- * the canonical month columns and every item/total row. Use `validateByAnchor`
- * afterwards to confirm the labels are still where we expect.
+ * the canonical month columns and every item/total row, applying YEAR_OVERRIDES
+ * for that year. `canonicalEndRow` is set from the year's final Saldo line.
+ * Use `validateByAnchor` afterwards to confirm the labels are still where we
+ * expect.
  */
 export function buildYearSheetMap(sheetName: string, year: number): YearSheetMap {
   const monthColumns: MonthColumnMap = {}
@@ -999,6 +1450,11 @@ export function buildYearSheetMap(sheetName: string, year: number): YearSheetMap
   const items: MappedCell[] = []
   for (const seed of CANONICAL_ITEM_COORDS) {
     const coord = getItemCoordSeed(year, seed.itemId) ?? seed
+    // Skip placeholder rows that collapse onto another item's row in this
+    // year (e.g. receitas "Outros" sharing row 9 in 2025). The first item
+    // mapped to that row wins; later duplicates are not emitted as separate
+    // cells to avoid double-counting.
+    if (items.some((c) => c.itemId === coord.itemId && c.month === 1)) continue
     for (let m = 1; m <= 12; m++) {
       items.push({
         sheetName,
@@ -1028,14 +1484,16 @@ export function buildYearSheetMap(sheetName: string, year: number): YearSheetMap
     })
   }
 
-  const totals: TotalRow[] = CANONICAL_TOTALS.map((t) => ({
+  const totals: TotalRow[] = buildTotalsForYear(year).map((t) => ({
     sheetName,
     year,
     classId: t.classId,
-    label: t.label,
+    label: t.kind === 'percent' ? '% sobre receita' : `Total ${t.classId}`,
     row: t.row,
+    column: t.column,
     kind: t.kind,
     anchor: t.anchor,
+    sectionContext: t.sectionContext,
   }))
 
   return {
@@ -1045,8 +1503,10 @@ export function buildYearSheetMap(sheetName: string, year: number): YearSheetMap
     totalColumn: CANONICAL_TOTAL_COLUMN,
     labelColumn: CANONICAL_LABEL_COLUMN,
     classColumn: CANONICAL_CLASS_COLUMN,
+    categoryColumn: CANONICAL_CATEGORY_COLUMN,
     items,
     totals,
+    canonicalEndRow: CANONICAL_END_ROW[year] ?? 0,
   }
 }
 
@@ -1069,6 +1529,12 @@ export function normalizeAnchorLabel(s: string | null | undefined): string {
  * (§1.4). `matrix` is the 2D cell matrix [row][col] with 1-based indices
  * (index 0 unused) — see parsers.ts `parseXLSX` which returns this shape.
  *
+ * Item-name anchors (Salário, Aluguel, …) MUST sit on the EXACT expected row
+ * in the label column (D) — that is what confirms the coordinate is still
+ * correct (a shifted row → fall back to search). Class-level anchors
+ * (DESPESAS FIXAS, RECEITAS, …) are validated broadly across columns A–C
+ * because they sit far above the item rows.
+ *
  * Returns the list of missing anchors (empty = fully validated).
  */
 export function validateByAnchor(
@@ -1079,13 +1545,10 @@ export function validateByAnchor(
   const present: string[] = []
   const missing: string[] = []
 
-  // Class-level anchors (DESPESAS FIXAS, RECEITAS, …) sit far above the item
-  // row, so a narrow ±1 window would always report them missing. Validate
-  // them across the whole sheet's class/label columns instead. Item-name
-  // anchors must sit on the EXACT expected row — that is what confirms the
-  // coordinate is still correct (a shifted row → fall back to search).
   const classLabelSet = new Set(Object.values(CANONICAL_CLASS_LABELS).map(normalizeAnchorLabel))
-  const classCols = Array.from(new Set([map.classColumn, map.labelColumn].filter((c) => c != null)))
+  // Class anchors live in columns A–C; item-name anchors live in column D.
+  const classCols = [map.classColumn, map.categoryColumn].filter((c) => c != null)
+  const labelCol = map.labelColumn
   const exactRow = matrix[cell.row] || []
 
   for (const anchor of cell.anchors) {
@@ -1097,7 +1560,7 @@ export function validateByAnchor(
     const isClassAnchor = classLabelSet.has(normAnchor)
     let found = false
     if (isClassAnchor) {
-      // broad search across the whole sheet, class/label columns only
+      // broad search across the whole sheet, class/category columns only
       for (let r = 1; r < matrix.length && !found; r++) {
         const rowArr = matrix[r] || []
         for (const c of classCols) {
@@ -1109,11 +1572,11 @@ export function validateByAnchor(
         }
       }
     } else {
-      // item-name anchor: must be on the exact expected row (any column)
-      found = exactRow.some((c) => {
-        const n = normalizeAnchorLabel(String(c ?? ''))
-        return n === normAnchor || n.includes(normAnchor)
-      })
+      // item-name anchor: must be on the EXACT expected row, column D
+      const labelCell = normalizeAnchorLabel(String(exactRow[labelCol] ?? ''))
+      if (labelCell && (labelCell === normAnchor || labelCell.includes(normAnchor))) {
+        found = true
+      }
     }
     if (found) present.push(anchor)
     else missing.push(anchor)
@@ -1178,8 +1641,8 @@ export function locateItem(
     }
   }
 
-  // 3. Structural search: find the item name in the label column within the
-  //    expected class block, then use that row.
+  // 3. Structural search: find the item name in column D within the expected
+  //    class block, then use that row.
   const searchRow = findItemRowByName(matrix, map, key.itemId, key.classId)
   if (searchRow !== null) {
     const col =
@@ -1211,6 +1674,10 @@ export function locateItem(
 
 /**
  * Structural search for an item row by name within a class block.
+ * Searches column D (labelColumn) in a window of ±10 rows around the canonical
+ * row, but ONLY within the bounds of the item's class section (so a name
+ * cannot be matched in a neighbouring class).
+ *
  * Returns the 1-based row index, or null.
  */
 export function findItemRowByName(
@@ -1224,8 +1691,14 @@ export function findItemRowByName(
   const normAnchors = cell.anchors.map(normalizeAnchorLabel).filter(Boolean)
   if (normAnchors.length === 0) return null
 
-  // search a window of ±10 rows around the canonical row
-  for (let r = Math.max(1, cell.row - 10); r <= Math.min(matrix.length - 1, cell.row + 10); r++) {
+  // Section bounds for this class in this year — keeps the search inside the block.
+  const section = getSectionBounds(map.year, classId)
+  const lo = section ? Math.max(1, section.startRow - 1, cell.row - 10) : Math.max(1, cell.row - 10)
+  const hi = section
+    ? Math.min(matrix.length - 1, section.endRow, cell.row + 10)
+    : Math.min(matrix.length - 1, cell.row + 10)
+
+  for (let r = lo; r <= hi; r++) {
     const rowArr = matrix[r] || []
     const labelCell = normalizeAnchorLabel(String(rowArr[map.labelColumn] ?? ''))
     if (!labelCell) continue
@@ -1242,28 +1715,51 @@ export function findItemRowByName(
 
 /**
  * Parse a formula like "=5,54+6,39+12,80" into its numeric components.
- * Handles Brazilian decimal commas, "+", "-", and cell refs (ignores refs).
+ *
+ * Handles BOTH decimal conventions found inside the workbook:
+ *  - Brazilian display form: comma decimal, dot thousands ("=5,54+6,39+12,80")
+ *  - OOXML internal form: dot decimal ("=5.54+6.39+12.80")
+ *
+ * Heuristic: if a part contains BOTH '.' and ',', the comma is the decimal
+ * separator (BR) and dots are thousand separators → strip dots, comma→dot.
+ * If a part contains only '.', treat '.' as the decimal separator (OOXML).
+ * If a part contains only ',', treat ',' as the decimal separator (BR).
+ *
+ * Cell references (A1, E5) are ignored. "+", "-" and "*" operators split terms.
  */
 export function decomposeFormula(formula: string): number[] {
   if (!formula) return []
   let s = String(formula).trim()
   if (s.startsWith('=')) s = s.slice(1)
-  // ignore cell references (A1, E5) — keep only numeric literals
+  // split on +, - and * (keep the sign via lookahead)
   const parts = s
-    .split(/(?=[+-])/)
+    .split(/(?=[+\-*])/)
     .map((p) => p.trim())
     .filter(Boolean)
   const nums: number[] = []
   for (const p of parts) {
-    // strip leading + or -
     const sign = p.startsWith('-') ? -1 : 1
-    const body = p.replace(/^[+-]/, '').trim()
+    const op = p.startsWith('+') || p.startsWith('-') || p.startsWith('*') ? p[0] : ''
+    let body = op ? p.slice(1).trim() : p.trim()
     if (!body) continue
-    // skip cell references
-    if (/^[A-Za-z]+\d+$/.test(body)) continue
-    // parse BR number
-    const cleaned = body.replace(/\./g, '').replace(',', '.')
-    const n = Number(cleaned)
+    // skip cell references (A1, E5, $A$1)
+    if (/^\$?[A-Za-z]+\$?\d+$/.test(body)) continue
+    // strip currency / percent signs
+    body = body.replace(/[^0-9.,-]/g, '')
+    if (!body) continue
+    // strip a leading minus that survived (already captured as sign)
+    if (body.startsWith('-')) body = body.slice(1)
+    let n: number
+    if (body.includes('.') && body.includes(',')) {
+      // BR: dot = thousands, comma = decimal
+      n = Number(body.replace(/\./g, '').replace(',', '.'))
+    } else if (body.includes(',')) {
+      // comma decimal
+      n = Number(body.replace(/\./g, '').replace(',', '.'))
+    } else {
+      // dot decimal (OOXML) or bare integer
+      n = Number(body)
+    }
     if (!isNaN(n)) nums.push(sign * n)
   }
   return nums
@@ -1301,9 +1797,9 @@ export interface ReconciliationReport {
 
 /**
  * Reconcile the imported transactions of one sheet against the original sheet
- * values. `sheetValues` is a map `${itemId}:${month}` → numeric value from
- * the sheet (already extracted). `txByItemMonth` is the same shape built from
- * the imported transactions.
+ * values. `sheetValues` is a map `${itemId}:${month}` → numeric value read
+ * DIRECTLY from the sheet's item cells (not the totals). `txByItemMonth` is the
+ * same shape built from the imported transactions.
  *
  * Target: difference = R$ 0,00 for every row.
  */
@@ -1390,14 +1886,22 @@ export function diagnoseSheet(
   const headerRow = headerRowIdx >= 0 ? matrix[headerRowIdx] : []
   const { months, totalColumn, fallback } = detectMonths(headerRow)
 
-  // class anchors
+  // class anchors — search columns A–D so header cells in any of them are seen
   const classesFound: SheetDiagnostic['classesFound'] = []
+  const searchCols = [CANONICAL_CLASS_COLUMN, CANONICAL_CATEGORY_COLUMN, CANONICAL_LABEL_COLUMN]
   for (const [classId, label] of Object.entries(CANONICAL_CLASS_LABELS)) {
     const normLabel = normalizeAnchorLabel(label)
     let row: number | null = null
     for (let r = 1; r < rowCount; r++) {
       const rowArr = matrix[r] || []
-      if (rowArr.some((c) => normalizeAnchorLabel(String(c ?? '')) === normLabel)) {
+      let hit = false
+      for (const c of searchCols) {
+        if (normalizeAnchorLabel(String(rowArr[c] ?? '')) === normLabel) {
+          hit = true
+          break
+        }
+      }
+      if (hit) {
         row = r
         break
       }
@@ -1415,8 +1919,21 @@ export function diagnoseSheet(
     }
   }
 
-  // totals found
-  const totalsFound: SheetDiagnostic['totalsFound'] = CANONICAL_TOTALS.map((t) => {
+  // totals found — for an unknown year, scan for the historical anchors
+  const totalsSeeds = year
+    ? buildTotalsForYear(year).map((t) => ({
+        label: t.kind === 'percent' ? '% sobre receita' : `Total ${t.classId}`,
+        anchor: t.anchor,
+      }))
+    : [
+        { label: 'Total Receitas', anchor: 'Total' },
+        { label: 'Total Investimentos', anchor: 'Total' },
+        { label: 'Total Despesas Fixas', anchor: 'Total' },
+        { label: 'Total Despesas Variáveis', anchor: 'Total' },
+        { label: 'Total Despesas Extras', anchor: 'Total' },
+        { label: 'Total Despesas Adicionais', anchor: 'Total despesas extras' },
+      ]
+  const totalsFound: SheetDiagnostic['totalsFound'] = totalsSeeds.map((t) => {
     const normAnchor = normalizeAnchorLabel(t.anchor)
     let row: number | null = null
     for (let r = 1; r < rowCount; r++) {
