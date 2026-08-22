@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Settings as SettingsIcon,
@@ -13,6 +13,8 @@ import {
   ShieldCheck,
   Table,
   CreditCard,
+  Lock,
+  FileDown,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -25,6 +27,7 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -36,6 +39,9 @@ import {
 import { useFinance } from '@/context/FinanceContext'
 import { exportTransactionsToCSV } from '@/lib/parsers'
 import { useToast } from '@/hooks/use-toast'
+import { downloadXlsx } from '@/lib/xlsxExport'
+import { exportEncryptedBackup, restoreEncryptedBackup } from '@/lib/cryptoBackup'
+import { exportMonthPdfReport } from '@/lib/pdfReport'
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -46,6 +52,10 @@ export default function Settings() {
     transactions,
     budgets,
     learnedRules,
+    financialClasses,
+    financialItems,
+    monthConsolidation,
+    currentMonth,
     exportBackup,
     restoreBackup,
     loadDemoData,
@@ -54,6 +64,21 @@ export default function Settings() {
   } = useFinance()
 
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
+  const [xlsxTemplateFile, setXlsxTemplateFile] = useState<File | null>(null)
+  const [xlsxYears, setXlsxYears] = useState<string>('')
+  const [encryptPassword, setEncryptPassword] = useState('')
+  const [restoreEncryptedFile, setRestoreEncryptedFile] = useState<File | null>(null)
+  const [restoreEncryptedPwd, setRestoreEncryptedPwd] = useState('')
+  const [exporting, setExporting] = useState(false)
+
+  const yearsWithTx = useMemo(() => {
+    const set = new Set<number>()
+    for (const t of transactions) {
+      const y = Number(t.date.split('-')[0])
+      if (!isNaN(y)) set.add(y)
+    }
+    return Array.from(set).sort((a, b) => a - b)
+  }, [transactions])
 
   // Export JSON Backup
   const handleExportBackup = () => {
@@ -146,6 +171,103 @@ export default function Settings() {
       description: 'O aplicativo foi reiniciado para o estado original.',
     })
     navigate('/boas-vindas')
+  }
+
+  // XLSX export with template + per-cell formulas
+  const handleExportXlsx = async () => {
+    setExporting(true)
+    try {
+      const years = xlsxYears
+        ? xlsxYears
+            .split(',')
+            .map((s) => Number(s.trim()))
+            .filter((n) => !isNaN(n))
+        : yearsWithTx
+      if (years.length === 0) {
+        toast({ title: 'Selecione ao menos um ano', variant: 'destructive' })
+        return
+      }
+      await downloadXlsx(
+        {
+          templateFile: xlsxTemplateFile,
+          years,
+          transactions,
+          items: financialItems,
+          classes: financialClasses,
+        },
+        `orcamento_${years.join('-')}.xlsx`,
+      )
+      toast({
+        title: 'Planilha XLSX exportada!',
+        description: `${years.length} ano(s) exportado(s).`,
+      })
+    } catch (e) {
+      console.error(e)
+      toast({ title: 'Falha ao exportar XLSX', description: String(e), variant: 'destructive' })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // Encrypted backup
+  const handleExportEncrypted = async () => {
+    if (!encryptPassword || encryptPassword.length < 4) {
+      toast({
+        title: 'Senha muito curta',
+        description: 'Use ao menos 4 caracteres.',
+        variant: 'destructive',
+      })
+      return
+    }
+    try {
+      const jsonStr = await exportEncryptedBackup(encryptPassword)
+      const blob = new Blob([jsonStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `orcamento_backup_encrypted_${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      toast({
+        title: 'Backup criptografado gerado!',
+        description: 'Guarde a senha: sem ela não é possível restaurar.',
+      })
+    } catch (e) {
+      toast({ title: 'Falha ao gerar backup', description: String(e), variant: 'destructive' })
+    }
+  }
+
+  const handleRestoreEncrypted = async () => {
+    if (!restoreEncryptedFile || !restoreEncryptedPwd) {
+      toast({ title: 'Selecione o arquivo e a senha', variant: 'destructive' })
+      return
+    }
+    try {
+      const text = await restoreEncryptedFile.text()
+      const ok = await restoreEncryptedBackup(text, restoreEncryptedPwd)
+      if (ok) {
+        toast({ title: 'Backup restaurado com sucesso!' })
+        // force reload to refresh context state
+        window.location.reload()
+      } else {
+        toast({
+          title: 'Falha ao descriptografar',
+          description: 'Senha incorreta ou arquivo inválido.',
+          variant: 'destructive',
+        })
+      }
+    } catch (e) {
+      toast({ title: 'Erro', description: String(e), variant: 'destructive' })
+    }
+  }
+
+  // PDF report
+  const handleExportPdf = () => {
+    const monthIdx = Number(currentMonth.split('-')[1]) - 1
+    const monthLabel = `${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][monthIdx]}/${currentMonth.split('-')[0]}`
+    exportMonthPdfReport(monthConsolidation, monthLabel)
+    toast({ title: 'Relatório PDF gerado!' })
   }
 
   return (
@@ -310,6 +432,140 @@ export default function Settings() {
             >
               <Download className="w-4 h-4" />
               Exportar todas as transações para CSV ({transactions.length} itens)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* XLSX Export Section */}
+      <Card className="border-slate-200/80 shadow-xs">
+        <CardHeader className="pb-3 border-b">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+              <FileSpreadsheet className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Exportar para XLSX (com fórmulas)
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Gera uma planilha com fórmulas por célula (=5.54+6.39) preservando o template
+                original.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-5 space-y-4 text-xs">
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">Template XLSX (opcional)</Label>
+            <p className="text-[11px] text-slate-500">
+              Envie sua planilha de referência (abas anuais 2023/2024/2025/2026). Sem template, o
+              sistema gera uma planilha nova a partir dos itens cadastrados.
+            </p>
+            <Input
+              type="file"
+              accept=".xlsx"
+              onChange={(e) => setXlsxTemplateFile(e.target.files?.[0] ?? null)}
+            />
+            {xlsxTemplateFile && (
+              <p className="text-[11px] text-emerald-700">Template: {xlsxTemplateFile.name}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">Anos para exportar</Label>
+            <Input
+              placeholder={`Ex: ${yearsWithTx.length ? yearsWithTx.join(', ') : '2024, 2025'}`}
+              value={xlsxYears}
+              onChange={(e) => setXlsxYears(e.target.value)}
+            />
+            <p className="text-[11px] text-slate-500">
+              Deixe em branco para exportar todos os anos com transações (
+              {yearsWithTx.join(', ') || 'nenhum'}).
+            </p>
+          </div>
+          <Button
+            onClick={handleExportXlsx}
+            disabled={exporting}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+          >
+            <FileDown className="w-4 h-4" />
+            {exporting ? 'Gerando…' : 'Baixar XLSX'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* PDF Report Section */}
+      <Card className="border-slate-200/80 shadow-xs">
+        <CardHeader className="pb-3 border-b">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-rose-100 text-rose-700">
+              <FileDown className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Relatório Mensal (PDF)
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Receita, despesas por classe e saldo do mês selecionado ({currentMonth}).
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-5">
+          <Button
+            onClick={handleExportPdf}
+            className="bg-rose-600 hover:bg-rose-700 text-white text-xs gap-1.5"
+          >
+            <FileDown className="w-4 h-4" /> Gerar PDF de {currentMonth}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Encrypted Backup Section */}
+      <Card className="border-slate-200/80 shadow-xs">
+        <CardHeader className="pb-3 border-b">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Backup Criptografado (AES-GCM)
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Backup protegido por senha (WebCrypto). Sem a senha, ninguém pode ler os dados.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-5 space-y-4 text-xs">
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">Senha para gerar backup</Label>
+            <Input
+              type="password"
+              value={encryptPassword}
+              onChange={(e) => setEncryptPassword(e.target.value)}
+              placeholder="Defina uma senha"
+            />
+            <Button onClick={handleExportEncrypted} variant="outline" className="text-xs gap-1.5">
+              <Lock className="w-4 h-4" /> Gerar backup criptografado
+            </Button>
+          </div>
+          <div className="space-y-2 pt-3 border-t">
+            <Label className="text-xs font-semibold">Restaurar backup criptografado</Label>
+            <Input
+              type="file"
+              accept=".json"
+              onChange={(e) => setRestoreEncryptedFile(e.target.files?.[0] ?? null)}
+            />
+            <Input
+              type="password"
+              value={restoreEncryptedPwd}
+              onChange={(e) => setRestoreEncryptedPwd(e.target.value)}
+              placeholder="Senha usada na geração"
+            />
+            <Button onClick={handleRestoreEncrypted} variant="outline" className="text-xs gap-1.5">
+              <Upload className="w-4 h-4" /> Restaurar criptografado
             </Button>
           </div>
         </CardContent>

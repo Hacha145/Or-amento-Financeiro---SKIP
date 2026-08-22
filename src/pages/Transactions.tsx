@@ -74,7 +74,17 @@ export default function Transactions() {
   const [editDescription, setEditDescription] = useState('')
   const [editAmount, setEditAmount] = useState('')
   const [editDate, setEditDate] = useState('')
-  const [editType, setEditType] = useState<'expense' | 'income'>('expense')
+  const [editType, setEditType] = useState<
+    | 'expense'
+    | 'income'
+    | 'investment_in'
+    | 'investment_out'
+    | 'transfer'
+    | 'credit_card_payment'
+    | 'reimbursement'
+    | 'adjustment'
+    | 'loan'
+  >('expense')
   const [editNotes, setEditNotes] = useState('')
 
   // Batch action state

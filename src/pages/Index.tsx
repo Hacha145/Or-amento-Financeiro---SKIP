@@ -12,6 +12,7 @@ import {
   Calendar,
   BarChart3,
   CalendarRange,
+  CalendarClock,
   ArrowUpRight,
   ArrowDownRight,
   FolderOpen,
@@ -21,10 +22,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { MonthSelector } from '@/components/MonthSelector'
 import { YearSelector } from '@/components/YearSelector'
 import { useFinance } from '@/context/FinanceContext'
 import { formatCurrencyBRL } from '@/lib/parsers'
+import { variationPercent } from '@/lib/consolidation'
 import {
   PieChart,
   Pie,
@@ -79,6 +82,11 @@ export default function Index() {
     categories,
     budgets,
     settings,
+    monthConsolidation,
+    previousMonthConsolidation,
+    yearConsolidation,
+    dataUpdatedAt,
+    financialItems,
   } = useFinance()
 
   // View Mode: 'monthly' | 'annual'
@@ -326,7 +334,28 @@ export default function Index() {
         </div>
       </div>
 
-      {/* Pending Reviews Alert Banner (Shown in both views if pending) */}
+      {/* "Dados atualizados até" indicator + Pending Reviews Alert Banner */}
+      <div className="flex flex-wrap items-center gap-2">
+        {dataUpdatedAt && (
+          <UITooltip>
+            <TooltipTrigger asChild>
+              <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-600 bg-white border border-slate-200 rounded-md px-2.5 py-1.5 cursor-help shadow-xs">
+                <CalendarClock className="w-3.5 h-3.5 text-emerald-600" />
+                <span>
+                  Dados atualizados até:{' '}
+                  <strong className="text-slate-800 font-semibold">
+                    {formatBRDate(dataUpdatedAt)}
+                  </strong>
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Data da transação mais recente registrada.</p>
+            </TooltipContent>
+          </UITooltip>
+        )}
+      </div>
+
       {pendingReviewCount > 0 && (
         <div className="bg-amber-50 border border-amber-300/80 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-slide-down">
           <div className="flex items-center gap-3">
@@ -354,6 +383,179 @@ export default function Index() {
           </Button>
         </div>
       )}
+
+      {/* Class consolidation (Receita / Investimentos / Despesas por classe + Saldo) */}
+      <Card className="border-slate-200/80 shadow-xs">
+        <CardHeader className="p-5 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base font-bold text-slate-900">
+              Consolidação por Classe
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {viewMode === 'annual'
+                ? `Receitas, investimentos e despesas por classe — ${selectedYear}`
+                : `Receitas, investimentos e despesas por classe — ${MONTH_NAMES_FULL[Number(currentMonth.split('-')[1]) - 1]} ${currentMonth.split('-')[0]}`}
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {monthConsolidation.totalExpenses > 0 &&
+              previousMonthConsolidation.totalExpenses > 0 &&
+              viewMode === 'monthly' && (
+                <Badge
+                  variant="outline"
+                  className={
+                    (variationPercent(
+                      monthConsolidation.totalExpenses,
+                      previousMonthConsolidation.totalExpenses,
+                    ) ?? 0) >= 0
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }
+                >
+                  {(() => {
+                    const v = variationPercent(
+                      monthConsolidation.totalExpenses,
+                      previousMonthConsolidation.totalExpenses,
+                    )
+                    if (v === null) return '—'
+                    const sign = v >= 0 ? '+' : ''
+                    return `${sign}${v.toFixed(1)}% vs mês anterior`
+                  })()}
+                </Badge>
+              )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-5 pt-0 space-y-4">
+          {/* Class grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {/* Receita */}
+            <ConsolidationTile
+              label="Receita"
+              value={viewMode === 'annual' ? yearConsolidation.income : monthConsolidation.income}
+              color="#10B981"
+              icon={<TrendingUp className="w-4 h-4" />}
+            />
+            {/* Investimentos (net) */}
+            <ConsolidationTile
+              label="Investimentos (líquido)"
+              value={
+                viewMode === 'annual'
+                  ? yearConsolidation.investmentsNet
+                  : monthConsolidation.investmentsNet
+              }
+              color="#3B82F6"
+              icon={<PiggyBank className="w-4 h-4" />}
+              hint={
+                viewMode === 'annual'
+                  ? `Aportes ${formatCurrencyBRL(yearConsolidation.investmentsIn)} · Resgates ${formatCurrencyBRL(yearConsolidation.investmentsOut)}`
+                  : `Aportes ${formatCurrencyBRL(monthConsolidation.investmentsIn)} · Resgates ${formatCurrencyBRL(monthConsolidation.investmentsOut)}`
+              }
+            />
+            {/* Expense classes */}
+            {(viewMode === 'annual'
+              ? yearConsolidation.expensesByClass
+              : monthConsolidation.expensesByClass
+            ).map((c) => (
+              <ConsolidationTile
+                key={c.classId}
+                label={c.label}
+                value={c.total}
+                color={c.color}
+                hint={`${c.percentage.toFixed(0)}% das despesas`}
+              />
+            ))}
+            {/* Total despesas */}
+            <ConsolidationTile
+              label="Total Despesas"
+              value={
+                viewMode === 'annual'
+                  ? yearConsolidation.totalExpenses
+                  : monthConsolidation.totalExpenses
+              }
+              color="#EF4444"
+              icon={<TrendingDown className="w-4 h-4" />}
+            />
+            {/* Saldo */}
+            <ConsolidationTile
+              label="Saldo"
+              value={viewMode === 'annual' ? yearConsolidation.balance : monthConsolidation.balance}
+              color="#0F172A"
+              icon={<Wallet className="w-4 h-4" />}
+            />
+          </div>
+
+          {/* Pie chart of expenses by class */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={
+                      viewMode === 'annual'
+                        ? yearConsolidation.expensesByClass
+                        : monthConsolidation.expensesByClass
+                    }
+                    dataKey="total"
+                    nameKey="label"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                  >
+                    {(viewMode === 'annual'
+                      ? yearConsolidation.expensesByClass
+                      : monthConsolidation.expensesByClass
+                    ).map((entry) => (
+                      <Cell key={entry.classId} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(val: any) => formatCurrencyBRL(Number(val))}
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      color: '#fff',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      border: 'none',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-700">Top itens de gasto</p>
+              {(viewMode === 'monthly'
+                ? monthConsolidation.topItems
+                : yearConsolidationMonthsTopItems(yearConsolidation)
+              ).length === 0 ? (
+                <p className="text-xs text-slate-400">Nenhum gasto registrado no período.</p>
+              ) : (
+                (viewMode === 'monthly'
+                  ? monthConsolidation.topItems
+                  : yearConsolidationMonthsTopItems(yearConsolidation)
+                )
+                  .slice(0, 6)
+                  .map((it) => {
+                    const item = financialItems.find((i) => i.id === it.itemId)
+                    return (
+                      <div key={it.itemId} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 truncate max-w-[65%]">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: it.color }}
+                          />
+                          <span className="font-medium text-slate-700 truncate">{it.itemName}</span>
+                        </div>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrencyBRL(it.total)}
+                        </span>
+                      </div>
+                    )
+                  })
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ========================================================================= */}
       {/* 1. VISÃO MENSAL (Monthly View)                                           */}
@@ -1245,6 +1447,84 @@ export default function Index() {
           </Card>
         </div>
       )}
+    </div>
+  )
+}
+
+// ---- Helpers used by the consolidation card ----
+
+/** Format an ISO date (YYYY-MM-DD) as DD/MM/YYYY (pt-BR). */
+function formatBRDate(iso?: string | null): string | null {
+  if (!iso) return null
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return null
+  return `${d}/${m}/${y}`
+}
+
+/** Aggregate the top items across all months of a year consolidation. */
+function yearConsolidationMonthsTopItems(year: {
+  months: {
+    topItems: {
+      itemId: string
+      itemName: string
+      classId: string
+      categoryId: string | null
+      color: string
+      total: number
+      count: number
+    }[]
+  }[]
+}) {
+  const map = new Map<
+    string,
+    {
+      itemId: string
+      itemName: string
+      classId: string
+      categoryId: string | null
+      color: string
+      total: number
+      count: number
+    }
+  >()
+  for (const m of year.months) {
+    for (const it of m.topItems) {
+      const ex = map.get(it.itemId)
+      if (ex) {
+        ex.total += it.total
+        ex.count += it.count
+      } else map.set(it.itemId, { ...it })
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.total - a.total)
+}
+
+/** Small tile showing a class consolidation row. */
+function ConsolidationTile({
+  label,
+  value,
+  color,
+  icon,
+  hint,
+}: {
+  label: string
+  value: number
+  color: string
+  icon?: React.ReactNode
+  hint?: string
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200/80 bg-white p-3 shadow-xs">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] uppercase tracking-wider text-slate-500 font-medium">
+          {label}
+        </span>
+        {icon && <span style={{ color }}>{icon}</span>}
+      </div>
+      <div className="text-base font-bold tracking-tight text-slate-900">
+        {formatCurrencyBRL(value)}
+      </div>
+      {hint && <p className="text-[10px] text-slate-500 mt-0.5">{hint}</p>}
     </div>
   )
 }

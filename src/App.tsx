@@ -12,6 +12,7 @@ import Transactions from './pages/Transactions'
 import ImportBank from './pages/Import'
 import Budget from './pages/Budget'
 import Categories from './pages/Categories'
+import Hierarchy from './pages/Hierarchy'
 import Settings from './pages/Settings'
 import Welcome from './pages/Welcome'
 import NotFound from './pages/NotFound'
@@ -36,6 +37,7 @@ function AppRoutes() {
         <Route path="/importar" element={<ImportBank />} />
         <Route path="/orcamento" element={<Budget />} />
         <Route path="/categorias" element={<Categories />} />
+        <Route path="/hierarquia" element={<Hierarchy />} />
         <Route path="/configuracoes" element={<Settings />} />
       </Route>
 

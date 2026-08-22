@@ -8,6 +8,13 @@ import {
   DEFAULT_CATEGORIES,
   PALETTE_COLORS,
   AppTemplateConfig,
+  FinancialClass,
+  FinancialCategory,
+  FinancialItem,
+  Account,
+  CreditCard,
+  InstallmentGroup,
+  ClassificationRule,
 } from '../types/finance'
 import {
   loadSettings,
@@ -24,6 +31,21 @@ import {
   clearAllData,
   exportBackupJSON,
   restoreBackupJSON,
+  loadFinancialClasses,
+  saveFinancialClasses,
+  loadFinancialCategories,
+  saveFinancialCategories,
+  loadFinancialItems,
+  saveFinancialItems,
+  loadAccounts,
+  saveAccounts,
+  loadCreditCards,
+  saveCreditCards,
+  loadInstallmentGroups,
+  saveInstallmentGroups,
+  loadClassificationRules,
+  saveClassificationRules,
+  migrateToV2Hierarchy,
 } from '../lib/storage'
 import {
   classifyByExactMatch,
@@ -32,6 +54,20 @@ import {
   buildLearnedRulesMap,
   isCreditCardPaymentDescription,
 } from '../lib/learningEngine'
+import {
+  classifyTransaction,
+  buildRuleFromTransaction,
+  markRuleApplied,
+} from '../lib/classificationEngine'
+import {
+  consolidateMonth,
+  consolidateYear,
+  lastUpdatedDate,
+  variationPercent,
+  previousMonthKey,
+  type MonthConsolidation,
+  type YearConsolidation,
+} from '../lib/consolidation'
 
 interface FinanceContextType {
   // State
@@ -43,7 +79,22 @@ interface FinanceContextType {
   currentMonth: string // YYYY-MM
   setCurrentMonth: (month: string) => void
 
-  // Stats for current month
+  // v2 hierarchy state
+  financialClasses: FinancialClass[]
+  financialCategories: FinancialCategory[]
+  financialItems: FinancialItem[]
+  accounts: Account[]
+  creditCards: CreditCard[]
+  installmentGroups: InstallmentGroup[]
+  classificationRules: ClassificationRule[]
+
+  // Consolidation (shared engine)
+  monthConsolidation: MonthConsolidation
+  yearConsolidation: YearConsolidation
+  previousMonthConsolidation: MonthConsolidation
+  dataUpdatedAt: string | null // "Dados atualizados até" indicator
+
+  // Stats for current month (legacy, kept for backward compatibility)
   monthlyStats: {
     income: number
     expense: number
@@ -77,12 +128,32 @@ interface FinanceContextType {
   deleteTransaction: (id: string) => void
   batchDeleteTransactions: (ids: string[]) => void
   classifyAndConfirmTransaction: (id: string, categoryId: string) => void
+  classifyAndConfirmTransactionItem: (id: string, itemId: string) => void
   batchConfirmTransactions: (items: { id: string; categoryId: string }[]) => void
+  batchConfirmTransactionsItem: (items: { id: string; itemId: string }[]) => void
 
   // Category Actions
   addCategory: (name: string, color?: string, icon?: string) => Category
   updateCategory: (id: string, updates: Partial<Category>) => void
   deleteCategory: (id: string) => void
+
+  // v2 hierarchy actions
+  addFinancialItem: (item: Omit<FinancialItem, 'id' | 'createdAt' | 'updatedAt'>) => FinancialItem
+  updateFinancialItem: (id: string, updates: Partial<FinancialItem>) => void
+  deleteFinancialItem: (id: string) => void
+  addAccount: (account: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>) => Account
+  updateAccount: (id: string, updates: Partial<Account>) => void
+  deleteAccount: (id: string) => void
+  addCreditCard: (card: Omit<CreditCard, 'id' | 'createdAt' | 'updatedAt'>) => CreditCard
+  updateCreditCard: (id: string, updates: Partial<CreditCard>) => void
+  deleteCreditCard: (id: string) => void
+  saveClassificationRule: (rule: ClassificationRule) => void
+  deleteClassificationRule: (id: string) => void
+  createRuleFromTransaction: (
+    txId: string,
+    itemId: string,
+    name?: string,
+  ) => ClassificationRule | null
 
   // Budget Actions
   setBudgetLimit: (categoryId: string, monthlyLimit: number) => void
@@ -120,11 +191,34 @@ const formatMonthKey = (d: Date) => {
 }
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [settings, setSettingsState] = useState<AppSettings>(() => loadSettings())
+  // Run the v2 migration on first load (idempotent — only runs once thanks to
+  // the schemaVersion flag in settings).
+  const [settings, setSettingsState] = useState<AppSettings>(() => {
+    migrateToV2Hierarchy()
+    return loadSettings()
+  })
   const [categories, setCategoriesState] = useState<Category[]>(() => loadCategories())
   const [transactions, setTransactionsState] = useState<Transaction[]>(() => loadTransactions())
   const [budgets, setBudgetsState] = useState<BudgetLimit[]>(() => loadBudgets())
   const [learnedRules, setLearnedRulesState] = useState<LearnedMapping[]>(() => loadLearnedRules())
+  // v2 hierarchy state
+  const [financialClasses, setFinancialClassesState] = useState<FinancialClass[]>(() =>
+    loadFinancialClasses(),
+  )
+  const [financialCategories, setFinancialCategoriesState] = useState<FinancialCategory[]>(() =>
+    loadFinancialCategories(),
+  )
+  const [financialItems, setFinancialItemsState] = useState<FinancialItem[]>(() =>
+    loadFinancialItems(),
+  )
+  const [accounts, setAccountsState] = useState<Account[]>(() => loadAccounts())
+  const [creditCards, setCreditCardsState] = useState<CreditCard[]>(() => loadCreditCards())
+  const [installmentGroups, setInstallmentGroupsState] = useState<InstallmentGroup[]>(() =>
+    loadInstallmentGroups(),
+  )
+  const [classificationRules, setClassificationRulesState] = useState<ClassificationRule[]>(() =>
+    loadClassificationRules(),
+  )
   const [currentMonth, setCurrentMonth] = useState<string>(() => formatMonthKey(new Date()))
 
   // Sync to storage
@@ -166,6 +260,36 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const setLearnedRules = useCallback((rules: LearnedMapping[]) => {
     setLearnedRulesState(rules)
     saveLearnedRules(rules)
+  }, [])
+
+  // v2 hierarchy setters (persist to storage on every change)
+  const setFinancialClasses = useCallback((c: FinancialClass[]) => {
+    setFinancialClassesState(c)
+    saveFinancialClasses(c)
+  }, [])
+  const setFinancialCategories = useCallback((c: FinancialCategory[]) => {
+    setFinancialCategoriesState(c)
+    saveFinancialCategories(c)
+  }, [])
+  const setFinancialItems = useCallback((items: FinancialItem[]) => {
+    setFinancialItemsState(items)
+    saveFinancialItems(items)
+  }, [])
+  const setAccounts = useCallback((a: Account[]) => {
+    setAccountsState(a)
+    saveAccounts(a)
+  }, [])
+  const setCreditCards = useCallback((c: CreditCard[]) => {
+    setCreditCardsState(c)
+    saveCreditCards(c)
+  }, [])
+  const setInstallmentGroups = useCallback((g: InstallmentGroup[]) => {
+    setInstallmentGroupsState(g)
+    saveInstallmentGroups(g)
+  }, [])
+  const setClassificationRules = useCallback((r: ClassificationRule[]) => {
+    setClassificationRulesState(r)
+    saveClassificationRules(r)
   }, [])
 
   // Helper to find category by name (case-insensitive)
@@ -280,10 +404,52 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const isCC =
         tx.isCreditCardPayment !== undefined
           ? tx.isCreditCardPayment
-          : isCreditCardPaymentDescription(tx.description)
+          : tx.type === 'credit_card_payment'
+            ? true
+            : isCreditCardPaymentDescription(tx.description)
+
+      // If the transaction is still unclassified but the user did NOT set
+      // needsReview, run the v2 classifier to suggest an item + reason.
+      let itemId = tx.itemId ?? null
+      let categoryId = tx.categoryId ?? null
+      let needsReview = tx.needsReview
+      let suggestedItemId = tx.suggestedItemId ?? null
+      let suggestedCategoryId = tx.suggestedCategoryId ?? null
+      let classificationReason = tx.classificationReason ?? null
+
+      if (!itemId && !categoryId && !needsReview) {
+        const rulesMap = buildLearnedRulesMap(learnedRules)
+        const result = classifyTransaction(
+          { ...tx, id: 'pending' } as Transaction,
+          financialItems,
+          classificationRules,
+          rulesMap,
+          categories,
+        )
+        if (result.itemId) {
+          itemId = result.itemId
+          const item = financialItems.find((i) => i.id === itemId)
+          if (item?.categoryId) categoryId = item.categoryId
+          classificationReason = result.reason
+          if (result.confidence === 'keyword') {
+            // keyword matches need confirmation
+            needsReview = true
+            suggestedItemId = itemId
+            suggestedCategoryId = item?.categoryId ?? null
+          }
+        } else {
+          needsReview = true
+        }
+      }
 
       const newTx: Transaction = {
         ...tx,
+        itemId,
+        categoryId,
+        needsReview,
+        suggestedItemId,
+        suggestedCategoryId,
+        classificationReason,
         isCreditCardPayment: isCC,
         id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         createdAt: now,
@@ -300,7 +466,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setTransactions(updated)
       return newTx
     },
-    [learnedRules, setLearnedRules, transactions, setTransactions],
+    [
+      learnedRules,
+      financialItems,
+      classificationRules,
+      categories,
+      setLearnedRules,
+      transactions,
+      setTransactions,
+    ],
   )
 
   // Update Transaction
@@ -313,11 +487,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const isCC =
             updates.isCreditCardPayment !== undefined
               ? updates.isCreditCardPayment
-              : updates.description
-                ? isCreditCardPaymentDescription(updates.description)
-                : t.isCreditCardPayment !== undefined
-                  ? t.isCreditCardPayment
-                  : isCreditCardPaymentDescription(t.description)
+              : updates.type === 'credit_card_payment'
+                ? true
+                : updates.description
+                  ? isCreditCardPaymentDescription(updates.description)
+                  : t.isCreditCardPayment !== undefined
+                    ? t.isCreditCardPayment
+                    : isCreditCardPaymentDescription(t.description)
 
           const merged = {
             ...t,
@@ -326,9 +502,23 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             updatedAt: new Date().toISOString(),
           }
 
+          // If itemId changed, also sync categoryId when possible
+          if (updates.itemId && updates.itemId !== t.itemId) {
+            const targetItem = financialItems.find((i) => i.id === updates.itemId)
+            if (targetItem?.categoryId) {
+              merged.categoryId = targetItem.categoryId
+            }
+          }
+
           // If category changed and confirmed
           if (merged.categoryId && !merged.needsReview && updates.categoryId) {
             updatedRules = learnExactRule(updatedRules, merged.description, merged.categoryId)
+          }
+          if (merged.itemId && !merged.needsReview && updates.itemId) {
+            const targetItem = financialItems.find((i) => i.id === merged.itemId)
+            if (targetItem?.categoryId) {
+              updatedRules = learnExactRule(updatedRules, merged.description, targetItem.categoryId)
+            }
           }
           return merged
         }
@@ -340,7 +530,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       setTransactions(updated)
     },
-    [learnedRules, setLearnedRules, transactions, setTransactions],
+    [learnedRules, financialItems, setLearnedRules, transactions, setTransactions],
   )
 
   // Delete Transaction
@@ -359,7 +549,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [transactions, setTransactions],
   )
 
-  // Confirm manual classification
+  // Confirm manual classification (legacy category-based)
   const classifyAndConfirmTransaction = useCallback(
     (id: string, categoryId: string) => {
       let ruleUpdated = learnedRules
@@ -381,6 +571,68 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setTransactions(updated)
     },
     [learnedRules, setLearnedRules, transactions, setTransactions],
+  )
+
+  // Confirm manual classification (v2 item-based). Also keeps legacy
+  // categoryId in sync by deriving it from the item's category when possible.
+  const classifyAndConfirmTransactionItem = useCallback(
+    (id: string, itemId: string) => {
+      let ruleUpdated = learnedRules
+      const targetItem = financialItems.find((i) => i.id === itemId)
+      const updated = transactions.map((t) => {
+        if (t.id === id) {
+          ruleUpdated = learnExactRule(ruleUpdated, t.description, targetItem?.categoryId || itemId)
+          return {
+            ...t,
+            itemId,
+            categoryId: targetItem?.categoryId || t.categoryId,
+            needsReview: false,
+            suggestedItemId: null,
+            suggestedCategoryId: null,
+            updatedAt: new Date().toISOString(),
+          }
+        }
+        return t
+      })
+
+      setLearnedRules(ruleUpdated)
+      setTransactions(updated)
+    },
+    [learnedRules, financialItems, setLearnedRules, transactions, setTransactions],
+  )
+
+  // Batch confirm with v2 item ids
+  const batchConfirmTransactionsItem = useCallback(
+    (items: { id: string; itemId: string }[]) => {
+      let currentRules = learnedRules
+      const itemMap = new Map(items.map((i) => [i.id, i.itemId]))
+
+      const updated = transactions.map((t) => {
+        const targetItemId = itemMap.get(t.id)
+        if (targetItemId) {
+          const targetItem = financialItems.find((i) => i.id === targetItemId)
+          currentRules = learnExactRule(
+            currentRules,
+            t.description,
+            targetItem?.categoryId || targetItemId,
+          )
+          return {
+            ...t,
+            itemId: targetItemId,
+            categoryId: targetItem?.categoryId || t.categoryId,
+            needsReview: false,
+            suggestedItemId: null,
+            suggestedCategoryId: null,
+            updatedAt: new Date().toISOString(),
+          }
+        }
+        return t
+      })
+
+      setLearnedRules(currentRules)
+      setTransactions(updated)
+    },
+    [learnedRules, financialItems, setLearnedRules, transactions, setTransactions],
   )
 
   // Batch confirm
@@ -410,7 +662,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [learnedRules, setLearnedRules, transactions, setTransactions],
   )
 
-  // Batch Import (from bank files or seed spreadsheet)
+  // Batch Import (from bank files or seed spreadsheet).
+  // Runs BOTH the v2 item-based classification engine AND the legacy
+  // exact/keyword logic so we keep populating itemId + categoryId in parallel.
   const importTransactionsBatch = useCallback(
     (
       newTxData: {
@@ -429,13 +683,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       let currentRules = [...learnedRules]
       let rulesMap = buildLearnedRulesMap(currentRules)
       let currentCats = [...categories]
+      // mutable copy of classification rules so applied counters update
+      let currentClassRules = [...classificationRules]
 
       const newTransactions: Transaction[] = []
 
       for (const item of newTxData) {
         let finalCategoryId: string | null = null
+        let finalItemId: string | null = null
         let needsReview = false
         let suggestedCategoryId: string | null = null
+        let suggestedItemId: string | null = null
+        let classificationReason: string | null = null
         const isCC =
           item.isCreditCardPayment !== undefined
             ? item.isCreditCardPayment
@@ -481,6 +740,52 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         }
 
+        // v2: run the item-based classifier for itemId + reason
+        const txForClassify: Transaction = {
+          id: 'pending',
+          date: item.date,
+          description: item.description,
+          amount: item.amount,
+          type: item.type,
+          categoryId: finalCategoryId,
+          itemId: null,
+          needsReview,
+          source: item.source,
+          createdAt: '',
+          updatedAt: '',
+        }
+        const v2Result = classifyTransaction(
+          txForClassify,
+          financialItems,
+          currentClassRules,
+          rulesMap,
+          currentCats,
+        )
+        if (v2Result.itemId) {
+          finalItemId = v2Result.itemId
+          classificationReason = v2Result.reason
+          // If v2 gave a confident answer and the legacy path was unsure, adopt it
+          if (needsReview && (v2Result.confidence === 'rule' || v2Result.confidence === 'exact')) {
+            needsReview = false
+            const targetItem = financialItems.find((i) => i.id === finalItemId)
+            if (targetItem?.categoryId) finalCategoryId = targetItem.categoryId
+            autoClassified++
+            pendingReview = Math.max(0, pendingReview - 1)
+          }
+          if (v2Result.confidence === 'rule') {
+            // bump rule application counters
+            const appliedRule = currentClassRules.find((r) => r.action.itemId === finalItemId)
+            if (appliedRule) {
+              currentClassRules = currentClassRules.map((r) =>
+                r.id === appliedRule.id ? markRuleApplied(r) : r,
+              )
+            }
+          }
+        }
+        if (needsReview && v2Result.itemId) {
+          suggestedItemId = v2Result.itemId
+        }
+
         const now = new Date().toISOString()
         newTransactions.push({
           id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -489,8 +794,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           amount: item.amount,
           type: item.type,
           categoryId: finalCategoryId,
+          itemId: finalItemId,
           needsReview,
           suggestedCategoryId,
+          suggestedItemId,
+          classificationReason,
           isCreditCardPayment: isCC,
           notes: item.notes || '',
           source: item.source || 'import_csv',
@@ -501,6 +809,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setCategories(currentCats)
       setLearnedRules(currentRules)
+      if (currentClassRules !== classificationRules) {
+        setClassificationRules(currentClassRules)
+      }
       const mergedTxs = [...newTransactions, ...transactions]
       setTransactions(mergedTxs)
 
@@ -510,7 +821,151 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         pendingReview,
       }
     },
-    [categories, learnedRules, setCategories, setLearnedRules, transactions, setTransactions],
+    [
+      categories,
+      learnedRules,
+      classificationRules,
+      financialItems,
+      setCategories,
+      setLearnedRules,
+      setClassificationRules,
+      transactions,
+      setTransactions,
+    ],
+  )
+
+  // --- v2 hierarchy actions ---
+
+  const addFinancialItem = useCallback(
+    (item: Omit<FinancialItem, 'id' | 'createdAt' | 'updatedAt'>): FinancialItem => {
+      const now = new Date().toISOString()
+      const newItem: FinancialItem = {
+        ...item,
+        id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        createdAt: now,
+        updatedAt: now,
+      }
+      setFinancialItems([...financialItems, newItem])
+      return newItem
+    },
+    [financialItems, setFinancialItems],
+  )
+
+  const updateFinancialItem = useCallback(
+    (id: string, updates: Partial<FinancialItem>) => {
+      const updated = financialItems.map((i) =>
+        i.id === id ? { ...i, ...updates, updatedAt: new Date().toISOString() } : i,
+      )
+      setFinancialItems(updated)
+    },
+    [financialItems, setFinancialItems],
+  )
+
+  const deleteFinancialItem = useCallback(
+    (id: string) => {
+      setFinancialItems(financialItems.filter((i) => i.id !== id))
+      // unassign item from transactions
+      const updatedTxs = transactions.map((t) =>
+        t.itemId === id ? { ...t, itemId: null, needsReview: true } : t,
+      )
+      setTransactions(updatedTxs)
+    },
+    [financialItems, transactions, setFinancialItems, setTransactions],
+  )
+
+  const addAccount = useCallback(
+    (account: Omit<Account, 'id' | 'createdAt' | 'updatedAt'>): Account => {
+      const now = new Date().toISOString()
+      const newAccount: Account = {
+        ...account,
+        id: `acc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        createdAt: now,
+        updatedAt: now,
+      }
+      setAccounts([...accounts, newAccount])
+      return newAccount
+    },
+    [accounts, setAccounts],
+  )
+
+  const updateAccount = useCallback(
+    (id: string, updates: Partial<Account>) => {
+      const updated = accounts.map((a) =>
+        a.id === id ? { ...a, ...updates, updatedAt: new Date().toISOString() } : a,
+      )
+      setAccounts(updated)
+    },
+    [accounts, setAccounts],
+  )
+
+  const deleteAccount = useCallback(
+    (id: string) => {
+      setAccounts(accounts.filter((a) => a.id !== id))
+    },
+    [accounts, setAccounts],
+  )
+
+  const addCreditCard = useCallback(
+    (card: Omit<CreditCard, 'id' | 'createdAt' | 'updatedAt'>): CreditCard => {
+      const now = new Date().toISOString()
+      const newCard: CreditCard = {
+        ...card,
+        id: `cc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        createdAt: now,
+        updatedAt: now,
+      }
+      setCreditCards([...creditCards, newCard])
+      return newCard
+    },
+    [creditCards, setCreditCards],
+  )
+
+  const updateCreditCard = useCallback(
+    (id: string, updates: Partial<CreditCard>) => {
+      const updated = creditCards.map((c) =>
+        c.id === id ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c,
+      )
+      setCreditCards(updated)
+    },
+    [creditCards, setCreditCards],
+  )
+
+  const deleteCreditCard = useCallback(
+    (id: string) => {
+      setCreditCards(creditCards.filter((c) => c.id !== id))
+    },
+    [creditCards, setCreditCards],
+  )
+
+  const saveClassificationRule = useCallback(
+    (rule: ClassificationRule) => {
+      const exists = classificationRules.some((r) => r.id === rule.id)
+      const updated = exists
+        ? classificationRules.map((r) =>
+            r.id === rule.id ? { ...rule, updatedAt: new Date().toISOString() } : r,
+          )
+        : [...classificationRules, rule]
+      setClassificationRules(updated)
+    },
+    [classificationRules, setClassificationRules],
+  )
+
+  const deleteClassificationRule = useCallback(
+    (id: string) => {
+      setClassificationRules(classificationRules.filter((r) => r.id !== id))
+    },
+    [classificationRules, setClassificationRules],
+  )
+
+  const createRuleFromTransaction = useCallback(
+    (txId: string, itemId: string, name?: string): ClassificationRule | null => {
+      const tx = transactions.find((t) => t.id === txId)
+      if (!tx) return null
+      const rule = buildRuleFromTransaction(tx, itemId, name)
+      setClassificationRules([...classificationRules, rule])
+      return rule
+    },
+    [transactions, classificationRules, setClassificationRules],
   )
 
   // Reset / Demo
@@ -520,7 +975,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setTransactions(data.transactions)
     setBudgets(data.budgets)
     setLearnedRules(data.rules)
-    updateSettings({ setupCompleted: true })
+    updateSettings({
+      setupCompleted: true,
+      schemaVersion: 2,
+      v2MigrationAt: new Date().toISOString(),
+    })
   }, [setCategories, setTransactions, setBudgets, setLearnedRules, updateSettings])
 
   const resetData = useCallback(() => {
@@ -529,11 +988,21 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setTransactionsState([])
     setBudgetsState([])
     setLearnedRulesState([])
+    // re-seed v2 hierarchy defaults
+    setFinancialClassesState(loadFinancialClasses())
+    setFinancialCategoriesState(loadFinancialCategories())
+    setFinancialItemsState(loadFinancialItems())
+    setAccountsState(loadAccounts())
+    setCreditCardsState(loadCreditCards())
+    setInstallmentGroupsState([])
+    setClassificationRulesState([])
     setSettingsState({
       currency: 'BRL',
       locale: 'pt-BR',
       setupCompleted: false,
       includeCreditCardPaymentsInTotals: false,
+      schemaVersion: 2,
+      v2MigrationAt: new Date().toISOString(),
     })
   }, [])
 
@@ -549,6 +1018,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setTransactionsState(loadTransactions())
       setBudgetsState(loadBudgets())
       setLearnedRulesState(loadLearnedRules())
+      setFinancialClassesState(loadFinancialClasses())
+      setFinancialCategoriesState(loadFinancialCategories())
+      setFinancialItemsState(loadFinancialItems())
+      setAccountsState(loadAccounts())
+      setCreditCardsState(loadCreditCards())
+      setInstallmentGroupsState(loadInstallmentGroups())
+      setClassificationRulesState(loadClassificationRules())
     }
     return ok
   }, [])
@@ -679,6 +1155,34 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [transactions, currentMonth, categories, budgets, settings.includeCreditCardPaymentsInTotals])
 
+  // v2 consolidation (shared engine). Recomputed whenever the inputs change.
+  const includeCC = settings.includeCreditCardPaymentsInTotals ?? false
+  const monthConsolidation = useMemo(
+    () =>
+      consolidateMonth(transactions, currentMonth, financialClasses, financialItems, {
+        includeCreditCardPayments: includeCC,
+      }),
+    [transactions, currentMonth, financialClasses, financialItems, includeCC],
+  )
+  const previousMonthConsolidation = useMemo(
+    () =>
+      consolidateMonth(
+        transactions,
+        previousMonthKey(currentMonth),
+        financialClasses,
+        financialItems,
+        { includeCreditCardPayments: includeCC },
+      ),
+    [transactions, currentMonth, financialClasses, financialItems, includeCC],
+  )
+  const yearConsolidation = useMemo(() => {
+    const year = Number(currentMonth.split('-')[0])
+    return consolidateYear(transactions, year, financialClasses, financialItems, {
+      includeCreditCardPayments: includeCC,
+    })
+  }, [transactions, currentMonth, financialClasses, financialItems, includeCC])
+  const dataUpdatedAt = useMemo(() => lastUpdatedDate(transactions), [transactions])
+
   return (
     <FinanceContext.Provider
       value={{
@@ -689,6 +1193,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         learnedRules,
         currentMonth,
         setCurrentMonth,
+        financialClasses,
+        financialCategories,
+        financialItems,
+        accounts,
+        creditCards,
+        installmentGroups,
+        classificationRules,
+        monthConsolidation,
+        yearConsolidation,
+        previousMonthConsolidation,
+        dataUpdatedAt,
         monthlyStats,
         updateSettings,
         setTemplateConfig,
@@ -697,10 +1212,24 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteTransaction,
         batchDeleteTransactions,
         classifyAndConfirmTransaction,
+        classifyAndConfirmTransactionItem,
         batchConfirmTransactions,
+        batchConfirmTransactionsItem,
         addCategory,
         updateCategory,
         deleteCategory,
+        addFinancialItem,
+        updateFinancialItem,
+        deleteFinancialItem,
+        addAccount,
+        updateAccount,
+        deleteAccount,
+        addCreditCard,
+        updateCreditCard,
+        deleteCreditCard,
+        saveClassificationRule,
+        deleteClassificationRule,
+        createRuleFromTransaction,
         setBudgetLimit,
         removeBudgetLimit,
         importTransactionsBatch,

@@ -13,10 +13,13 @@ import {
   Wallet,
   ShieldCheck,
   AlertCircle,
+  Layers,
+  CalendarClock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useFinance } from '@/context/FinanceContext'
 import { NewTransactionDialog } from './NewTransactionDialog'
 
@@ -26,11 +29,20 @@ const navItems = [
   { to: '/importar', label: 'Importar', icon: UploadCloud },
   { to: '/orcamento', label: 'Orçamento', icon: Target },
   { to: '/categorias', label: 'Categorias', icon: Tag },
+  { to: '/hierarquia', label: 'Hierarquia', icon: Layers },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
+/** Format an ISO date (YYYY-MM-DD) as DD/MM/YYYY (pt-BR). */
+function formatBRDate(iso?: string | null): string | null {
+  if (!iso) return null
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return null
+  return `${d}/${m}/${y}`
+}
+
 export default function Layout() {
-  const { monthlyStats, settings } = useFinance()
+  const { monthlyStats, settings, dataUpdatedAt } = useFinance()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
@@ -38,6 +50,7 @@ export default function Layout() {
 
   // If setup not completed and not on onboarding, we handle via onboarding route or let user explore
   const pendingCount = monthlyStats.pendingReviewCount
+  const updatedAtBR = formatBRDate(dataUpdatedAt)
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row text-slate-900 font-sans">
@@ -58,6 +71,26 @@ export default function Layout() {
               </p>
             </div>
           </div>
+
+          {/* "Dados atualizados até" indicator */}
+          {updatedAtBR && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="mb-4 flex items-center gap-2 text-[11px] text-slate-500 bg-slate-100/80 rounded-md px-2.5 py-1.5 cursor-help">
+                    <CalendarClock className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>
+                      Dados atualizados até:{' '}
+                      <strong className="text-slate-700 font-semibold">{updatedAtBR}</strong>
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Data da transação mais recente registrada.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
 
           {/* New Transaction Button */}
           <Button
