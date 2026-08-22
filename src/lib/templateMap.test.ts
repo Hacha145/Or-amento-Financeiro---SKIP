@@ -14,6 +14,7 @@ import {
   CANONICAL_CATEGORY_COLUMN,
   CANONICAL_MONTH_START_COLUMN,
   decomposeFormula,
+  isLaunchFormula,
   sumFormula,
   findItemRowByName,
   validateByAnchor,
@@ -23,6 +24,7 @@ import {
   reconcileSheet,
   getSectionBounds,
   extractResumoMeta,
+  detectIntentionalExclusion,
   type YearSheetMap,
 } from './templateMap'
 import { computeAnnualSummary, buildItemClassLookup } from './annualSummaryService'
@@ -330,6 +332,139 @@ describe('templateMap — formula decomposition', () => {
   it('returns [] for empty input', () => {
     expect(decomposeFormula('')).toEqual([])
   })
+
+  // ---- BUG 1 — sign preservation with the ExcelJS OOXML form ----
+  it('BUG1: "=100-20" → [100, -20] (subtraction produces a negative term)', () => {
+    const parts = decomposeFormula('=100-20')
+    expect(parts).toEqual([100, -20])
+    expect(sumFormula('=100-20')).toBeCloseTo(80, 5)
+  })
+
+  it('BUG1: "=100+-20" → [100, -20] (ExcelJS stores 100-20 as 100+-20)', () => {
+    const parts = decomposeFormula('=100+-20')
+    expect(parts).toEqual([100, -20])
+    expect(sumFormula('=100+-20')).toBeCloseTo(80, 5)
+  })
+
+  it('BUG1: "=-20+100" → [-20, 100] (leading negative term preserved)', () => {
+    const parts = decomposeFormula('=-20+100')
+    expect(parts).toEqual([-20, 100])
+    expect(sumFormula('=-20+100')).toBeCloseTo(80, 5)
+  })
+
+  it('BUG1: "=100+(-20)" → [100, -20] (parenthesized negative number unwrapped)', () => {
+    const parts = decomposeFormula('=100+(-20)')
+    expect(parts).toEqual([100, -20])
+    expect(sumFormula('=100+(-20)')).toBeCloseTo(80, 5)
+  })
+
+  it('BUG1: "=-20" → [-20] (single negative literal)', () => {
+    const parts = decomposeFormula('=-20')
+    expect(parts).toEqual([-20])
+  })
+
+  it('BUG1: "=100-20+30-5" → [100, -20, 30, -5] (sum = 105)', () => {
+    const parts = decomposeFormula('=100-20+30-5')
+    expect(parts).toEqual([100, -20, 30, -5])
+    expect(sumFormula('=100-20+30-5')).toBeCloseTo(105, 5)
+  })
+
+  it('BUG1: "=5,54+6,39+12,80" regression — BR decimal form unchanged', () => {
+    const parts = decomposeFormula('=5,54+6,39+12,80')
+    expect(parts.map((p) => Math.round(p * 100) / 100)).toEqual([5.54, 6.39, 12.8])
+  })
+
+  it('BUG1: "=5.54+6.39+12.80" regression — OOXML decimal form unchanged', () => {
+    const parts = decomposeFormula('=5.54+6.39+12.80')
+    expect(parts.map((p) => Math.round(p * 100) / 100)).toEqual([5.54, 6.39, 12.8])
+  })
+
+  it('BUG1: "=500-100" (estorno) → [500, -100]', () => {
+    expect(decomposeFormula('=500-100')).toEqual([500, -100])
+  })
+
+  it('BUG1: "=50-80" (reembolso > gasto) → [50, -80]', () => {
+    expect(decomposeFormula('=50-80')).toEqual([50, -80])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// BUG 2 — launch vs derived formula detection
+// ---------------------------------------------------------------------------
+describe('templateMap — isLaunchFormula', () => {
+  it('returns true for a sum of literals "=5.54+6.39+12.80"', () => {
+    expect(isLaunchFormula('=5.54+6.39+12.80')).toBe(true)
+  })
+
+  it('returns true for "=100-20+30-5" (literals with signs)', () => {
+    expect(isLaunchFormula('=100-20+30-5')).toBe(true)
+  })
+
+  it('returns false for a single literal "=25.90" (only one component)', () => {
+    expect(isLaunchFormula('=25.90')).toBe(false)
+  })
+
+  it('returns false for a cell-reference sum "=E6+E7" (derived)', () => {
+    expect(isLaunchFormula('=E6+E7')).toBe(false)
+  })
+
+  it('returns false for a SUM(range) formula (derived)', () => {
+    expect(isLaunchFormula('=SUM(E6:E9)')).toBe(false)
+  })
+
+  it('returns false for #REF! / broken formula (derived)', () => {
+    expect(isLaunchFormula('=#REF!')).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// BUG 3 — reconciliation: negative saldo is NOT a divergence
+// ---------------------------------------------------------------------------
+describe('templateMap — reconcileSheet (BUG 3: saldo negativo ≠ divergência)', () => {
+  it('saldo negativo que reconcilia → ok=true (NÃO é divergência)', () => {
+    const sheetValues = new Map<string, { value: number; formula?: string }>()
+    const txByItemMonth = new Map<string, number>()
+    sheetValues.set('item-x:1', { value: -500 })
+    txByItemMonth.set('item-x:1', -500)
+    const rec = reconcileSheet('Orçamento 2025', 2025, sheetValues, txByItemMonth)
+    expect(rec.ok).toBe(true)
+    expect(Math.abs(rec.totalDifference)).toBeLessThan(0.005)
+  })
+
+  it('diferença real entre source e reconstructed → ok=false (É divergência)', () => {
+    const sheetValues = new Map<string, { value: number; formula?: string }>()
+    const txByItemMonth = new Map<string, number>()
+    sheetValues.set('item-y:1', { value: 1000 })
+    txByItemMonth.set('item-y:1', 1500) // -500 real divergence
+    const rec = reconcileSheet('Orçamento 2025', 2025, sheetValues, txByItemMonth)
+    expect(rec.ok).toBe(false)
+    expect(Math.abs(rec.totalDifference - -500)).toBeLessThan(0.005)
+  })
+
+  it('não confunde saldo negativo com divergência mesmo quando ambos negativos', () => {
+    const sheetValues = new Map<string, { value: number; formula?: string }>()
+    const txByItemMonth = new Map<string, number>()
+    sheetValues.set('item-z:1', { value: -1500 })
+    txByItemMonth.set('item-z:1', -1500)
+    const rec = reconcileSheet('Orçamento 2026', 2026, sheetValues, txByItemMonth)
+    expect(rec.ok).toBe(true)
+  })
+})
+
+describe('templateMap — detectIntentionalExclusion (BUG 3: semântica histórica)', () => {
+  it('marca "=E6+E7+E9" como exclusão intencional (exclui E8)', () => {
+    const note = detectIntentionalExclusion('=E6+E7+E9', [6, 7, 8, 9], 5)
+    expect(note).not.toBeNull()
+    expect(note).toContain('8')
+  })
+
+  it('não marca "=SUM(E6:E9)" como exclusão (cobre faixa contígua)', () => {
+    expect(detectIntentionalExclusion('=SUM(E6:E9)', [6, 7, 8, 9], 5)).toBeNull()
+  })
+
+  it('não marca uma fórmula que referencia todos os itens', () => {
+    expect(detectIntentionalExclusion('=E6+E7+E8+E9', [6, 7, 8, 9], 5)).toBeNull()
+  })
 })
 
 describe('templateMap — reconcileSheet', () => {
@@ -592,6 +727,92 @@ describe('templateMap — extractResumoMeta (Part 2)', () => {
   it('isAuxiliarySheet still returns true for RESUMO (still skipped in the tx loop)', () => {
     expect(isAuxiliarySheet('RESUMO')).toBe(true)
     expect(isAuxiliarySheet('Resumo Geral')).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// BUG 4 — extractResumoMeta: year-block scanning, deep obs header, legend
+// filtering. Mirrors the real RESUMO layout: legend at M2:N6, obs header deep
+// in the sheet, year-block headers at A1/A11/A24, Investimentos/Receitas near
+// the legend (which the old code erroneously counted as a 5th legend class).
+// ---------------------------------------------------------------------------
+describe('templateMap — extractResumoMeta (BUG 4)', () => {
+  function buildResumoMatrixBug4(): (string | number | null)[][] {
+    const m: (string | number | null)[][] = []
+    for (let i = 0; i <= 30; i++) m.push(new Array(15).fill(null))
+    // Year-block headers (A1=2023, A10=2024, A20=2025)
+    m[1][1] = '2023'
+    m[10][1] = '2024'
+    m[20][1] = '2025'
+    // Legend block: "LEGENDA" header + 4 despesa rows + stray Investimentos/Receitas
+    m[1][13] = 'LEGENDA'
+    m[2][13] = 'DESPESAS FIXAS'
+    m[2][14] = 'Aluguel, Condomínio, 1500, R$ 200'
+    m[3][13] = 'DESPESAS VARIÁVEIS'
+    m[3][14] = 'Luz, Supermercado'
+    m[4][13] = 'DESPESAS EXTRAS'
+    m[4][14] = 'Médico, Farmácia'
+    m[5][13] = 'DESPESAS ADICIONAIS'
+    m[5][14] = 'Viagens, Roupas'
+    // 5th & 6th class near the legend — must be EXCLUDED
+    m[6][13] = 'INVESTIMENTOS'
+    m[6][14] = 'Cripto, Tesouro'
+    m[7][1] = 'RECEITAS'
+    m[7][14] = 'Salário'
+    // Observation header deep in the sheet (row 20, col M = 13) — old code only
+    // searched rows 1..6 and would miss this.
+    m[20][13] = 'Observação'
+    // Observations in the 2025 block (rows 21-22, class in col A, text in col M)
+    m[21][1] = 'DESPESAS FIXAS'
+    m[21][13] = 'Aumento do aluguel em setembro.'
+    m[22][1] = 'DESPESAS VARIÁVEIS'
+    m[22][13] = 'Supermercado subiu mais que a inflação.'
+    return m
+  }
+
+  it('BUG4a: reconhece 2023, 2024 e 2025 (não apenas 2023)', () => {
+    const meta = extractResumoMeta(buildResumoMatrixBug4(), 'RESUMO')
+    expect(meta.yearsFound).toContain(2023)
+    expect(meta.yearsFound).toContain(2024)
+    expect(meta.yearsFound).toContain(2025)
+    expect(meta.yearsFound.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('BUG4b: importa observações quando o header está profundo na aba (linha 20)', () => {
+    const meta = extractResumoMeta(buildResumoMatrixBug4(), 'RESUMO')
+    expect(meta.observations.length).toBeGreaterThanOrEqual(2)
+    const fixas = meta.observations.find((o) => o.metric === 'despesas_fixas')
+    expect(fixas?.text).toContain('aluguel')
+    expect(fixas?.year).toBe(2025) // inherited from the A20 block header
+    const variaveis = meta.observations.find((o) => o.metric === 'despesas_variaveis')
+    expect(variaveis?.text).toContain('Supermercado')
+    expect(variaveis?.year).toBe(2025)
+  })
+
+  it('BUG4c: legenda tem exatamente 4 classes (não 5)', () => {
+    const meta = extractResumoMeta(buildResumoMatrixBug4(), 'RESUMO')
+    expect(meta.legend).toHaveLength(4)
+    const ids = meta.legend.map((l) => l.classId)
+    expect(ids).toContain('despesas_fixas')
+    expect(ids).toContain('despesas_variaveis')
+    expect(ids).toContain('despesas_extras')
+    expect(ids).toContain('despesas_adicionais')
+  })
+
+  it('BUG4c: legenda não contém números nem "R$" como categorias', () => {
+    const meta = extractResumoMeta(buildResumoMatrixBug4(), 'RESUMO')
+    const allCats = meta.legend.flatMap((l) => l.categories)
+    // "1500" and "R$ 200" were in the fixas category list — they must be filtered
+    for (const c of allCats) {
+      expect(/^\d+(?:[.,]\d+)?$/.test(c)).toBe(false)
+      expect(c.toUpperCase().startsWith('R$')).toBe(false)
+    }
+  })
+
+  it('BUG4c: Investimentos NÃO aparece como classe da legenda', () => {
+    const meta = extractResumoMeta(buildResumoMatrixBug4(), 'RESUMO')
+    expect(meta.legend.some((l) => l.classId === 'investimentos')).toBe(false)
+    expect(meta.legend.some((l) => l.classId === 'receitas')).toBe(false)
   })
 })
 

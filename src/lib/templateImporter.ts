@@ -20,11 +20,14 @@ import {
   locateItem,
   validateByAnchor,
   decomposeFormula,
+  isLaunchFormula,
   reconcileSheet,
   buildImportReport,
   txKey,
   extractResumoMeta,
   normalizeAnchorLabel,
+  getSectionBounds,
+  detectIntentionalExclusion,
   YearSheetMap,
   SheetDiagnostic,
   ReconciliationReport,
@@ -78,6 +81,14 @@ export interface TemplateExtractedTransaction {
   locateMethod: string
   /** anchor validation notes (missing anchors etc.) */
   notes: string[]
+  /**
+   * When a launch formula (=5.54+6.39+12.80) is decomposed into multiple
+   * transactions, this is the 1-based index of this component within its
+   * (item, month) cell. Undefined when the cell produced a single transaction
+   * (literal value, cached-only formula, or derived formula). Used by the
+   * export engine to reconstruct the original formula in launch order.
+   */
+  sequenceInMonth?: number
 }
 
 /**
@@ -196,22 +207,66 @@ export async function importTemplateXLSX(
         continue
       }
 
-      transactions.push({
-        sheetName: sheet.sheetName,
-        year: diag.year,
-        classId: cell.classId,
-        categoryId: cell.categoryId,
-        itemId: cell.itemId,
-        month: cell.month,
-        value,
-        formula,
-        locateMethod: located.method,
-        notes: located.missingAnchors.length
-          ? [`âncoras ausentes: ${located.missingAnchors.join(', ')}`]
-          : [],
-      })
+      // BUG 2: when the cell holds a LAUNCH formula (a sum of literal numbers
+      // like =5.54+6.39+12.80) decompose it into one transaction per component
+      // so item-level reconciliation works and the export round-trips. DERIVED
+      // formulas (SUM(...), cell refs E6+E7, #REF!, functions) and single-value
+      // cells fall back to the cached value as a single transaction.
+      // RULE: never use Math.abs here — a negative component (reimbursement/
+      // reversal) must be preserved as a negative transaction. Skipping
+      // value <= 0 is PROHIBITED.
+      const launchParts = isLaunchFormula(formula ?? '') ? decomposeFormula(formula!) : []
+      // Verify the decomposition actually reconstructs the cached value
+      // (within half a cent of tolerance). If the sum drifts — e.g. the formula
+      // is a launch form but our parser mis-reads a token — fall back to the
+      // cached value as a single transaction rather than emitting wrong parts.
+      const launchSum = launchParts.reduce((a, b) => a + b, 0)
+      const launchValid = launchParts.length > 1 && Math.abs(launchSum - value) < 0.005
 
-      sheetValues.set(txKey(cell.itemId, cell.month), { value, formula: formula ?? undefined })
+      if (launchValid) {
+        for (let i = 0; i < launchParts.length; i++) {
+          transactions.push({
+            sheetName: sheet.sheetName,
+            year: diag.year,
+            classId: cell.classId,
+            categoryId: cell.categoryId,
+            itemId: cell.itemId,
+            month: cell.month,
+            value: launchParts[i],
+            formula: i === 0 ? formula : null,
+            locateMethod: located.method,
+            notes:
+              i === 0 && located.missingAnchors.length
+                ? [`âncoras ausentes: ${located.missingAnchors.join(', ')}`]
+                : [],
+            sequenceInMonth: i + 1,
+          })
+        }
+        // item-level sheet value = the cached total (sum of components)
+        sheetValues.set(txKey(cell.itemId, cell.month), {
+          value,
+          formula: formula ?? undefined,
+        })
+      } else {
+        transactions.push({
+          sheetName: sheet.sheetName,
+          year: diag.year,
+          classId: cell.classId,
+          categoryId: cell.categoryId,
+          itemId: cell.itemId,
+          month: cell.month,
+          value,
+          formula,
+          locateMethod: located.method,
+          notes: located.missingAnchors.length
+            ? [`âncoras ausentes: ${located.missingAnchors.join(', ')}`]
+            : [],
+        })
+        sheetValues.set(txKey(cell.itemId, cell.month), {
+          value,
+          formula: formula ?? undefined,
+        })
+      }
     }
 
     // Surface sheets with anchor issues but still extract what we could.
@@ -230,19 +285,36 @@ export async function importTemplateXLSX(
     }
   }
 
-  // Reconcile each sheet (§1.8). CRITICAL: read the totals DIRECTLY from the
-  // original sheet's total rows (CANONICAL_TOTALS coordinates × month columns)
-  // and compare against the SUM of the extracted transactions grouped by
-  // (classId, month). Previously this compared the extracted values against
-  // themselves, producing a false R$ 0,00.
+  // Reconcile each sheet (§1.8). ITEM-LEVEL is the primary reconciliation
+  // (BUG 3): for every (itemId, month) cell we extracted, the sum of the
+  // cell's transactions must equal the cached sheet value. CLASS-LEVEL is
+  // kept as a SECONDARY diagnostic — it reads the sheet's total rows
+  // directly and flags when a class total formula intentionally excludes
+  // some item rows (historical semantic, e.g. 2026 Receitas =E6+E7+E9
+  // excludes E8 "Divisão Lulu") so that an expected class-level divergence
+  // is reported as "semântica histórica" rather than "divergência".
+  //
+  // RULE: a negative source value (negative saldo / reimbursement) is NOT a
+  // divergence — only ABS(source - reconstructed) > tolerance is. Tolerance
+  // is half a centavo to absorb binary rounding noise from SUM.
   const reconciliations: ReconciliationReport[] = []
-  for (const [sheetName] of sheetValuesBySheet.entries()) {
+  for (const [sheetName, sheetValues] of sheetValuesBySheet.entries()) {
     const diag = diagnostics.find((d) => d.sheetName === sheetName)!
     const yearMap = yearMaps.find((m) => m.sheetName === sheetName)
     const sheet = parsed.sheets.find((s) => s.sheetName === sheetName)
     if (!sheet || !yearMap) continue
 
-    // 1. Read the sheet's total cells directly — one per (class, month).
+    // 1. PRIMARY — item-level reconstruction.
+    const txByItemMonth = new Map<string, number>()
+    for (const tx of transactions) {
+      if (tx.sheetName !== sheetName) continue
+      const key = txKey(tx.itemId, tx.month)
+      txByItemMonth.set(key, (txByItemMonth.get(key) ?? 0) + tx.value)
+    }
+    const itemRec = reconcileSheet(sheetName, diag.year ?? 0, sheetValues, txByItemMonth)
+    reconciliations.push({ ...itemRec, level: 'item' })
+
+    // 2. SECONDARY — class-level diagnostic. Reads the total rows directly.
     const sheetTotalsFromSheet = new Map<string, { value: number; formula?: string }>()
     for (const total of yearMap.totals) {
       if (total.kind !== 'total') continue // skip % and saldo rows for tx recon
@@ -265,7 +337,7 @@ export async function importTemplateXLSX(
       }
     }
 
-    // 2. Reconstruct per (classId, month) from the extracted transactions.
+    // 3. Reconstruct per (classId, month) from the extracted transactions.
     const txByClassMonth = new Map<string, number>()
     for (const tx of transactions) {
       if (tx.sheetName !== sheetName) continue
@@ -273,9 +345,55 @@ export async function importTemplateXLSX(
       txByClassMonth.set(key, (txByClassMonth.get(key) ?? 0) + tx.value)
     }
 
-    // 3. Compare — target diff = R$ 0,00 per row.
-    const rec = reconcileSheet(sheetName, diag.year ?? 0, sheetTotalsFromSheet, txByClassMonth)
-    reconciliations.push(rec)
+    // 4. Compare class-level. When a class diverges, check whether the total
+    //    formula INTENTIONALLY excludes item rows (historical semantic) —
+    //    if so, annotate the row instead of flagging it as a parser divergence.
+    const classRec = reconcileSheet(sheetName, diag.year ?? 0, sheetTotalsFromSheet, txByClassMonth)
+    // For each divergent class row, look up the section's item rows and ask
+    // detectIntentionalExclusion whether the total formula is a subset-sum.
+    const annotatedRows = classRec.rows.map((r) => {
+      if (Math.abs(r.difference) < 0.005) return r
+      const [classId, monthStr] = r.key.split(':')
+      const month = Number(monthStr)
+      const monthCol = yearMap.monthColumns[month] ?? yearMap.totalColumn ?? 0
+      const section = getSectionBounds(yearMap.year, classId)
+      const itemRows = (
+        section
+          ? Array.from(
+              new Set(
+                yearMap.items
+                  .filter(
+                    (c) =>
+                      c.classId === classId &&
+                      c.month !== 0 &&
+                      c.row >= section.startRow &&
+                      c.row < section.endRow,
+                  )
+                  .map((c) => c.row),
+              ),
+            )
+          : []
+      ).sort((a, b) => a - b)
+      const total = yearMap.totals.find((t) => t.classId === classId && t.kind === 'total')
+      const totalFormula = total
+        ? (sheet.formulas[total.row]?.[yearMap.monthColumns[month] ?? total.column] ?? null)
+        : null
+      const semantic = detectIntentionalExclusion(totalFormula, itemRows, monthCol)
+      return { ...r, semanticNote: semantic }
+    })
+    // A class-level row annotated with a semantic note is no longer counted
+    // as a divergence (it's the workbook's own intentional design).
+    const ok =
+      annotatedRows.every((r) => Math.abs(r.difference) < 0.005 || r.semanticNote) &&
+      Math.abs(classRec.totalDifference) < 0.005
+    reconciliations.push({
+      sheetName,
+      year: diag.year ?? 0,
+      rows: annotatedRows,
+      totalDifference: classRec.totalDifference,
+      ok,
+      level: 'class',
+    })
   }
 
   const report = buildImportReport(

@@ -221,9 +221,24 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
           )}
           <div className="divide-y divide-slate-100">
             {reconciliations.map((rec) => (
-              <div key={rec.sheetName} className="px-4 py-3 text-xs space-y-2">
+              <div
+                key={`${rec.sheetName}-${rec.level ?? 'item'}`}
+                className="px-4 py-3 text-xs space-y-2"
+              >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="font-semibold text-slate-900">{rec.sheetName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-900">{rec.sheetName}</span>
+                    {rec.level === 'class' && (
+                      <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-[9px]">
+                        classe (diagnóstico)
+                      </Badge>
+                    )}
+                    {rec.level === 'item' && (
+                      <Badge className="bg-sky-100 text-sky-700 border-sky-200 text-[9px]">
+                        item (primária)
+                      </Badge>
+                    )}
+                  </div>
                   {rec.ok ? (
                     <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1">
                       <CheckCircle2 className="w-3 h-3" /> diff R$ 0,00
@@ -233,7 +248,7 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
                       <AlertTriangle className="w-3 h-3" /> diff {fmtBRL(rec.totalDifference)}
                     </Badge>
                   )}
-                </div>
+                </div>{' '}
                 {rec.rows.length > 0 && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-[11px]">
@@ -247,12 +262,12 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {rec.rows
-                          .filter((r) => Math.abs(r.difference) >= 0.01)
+                          .filter((r) => Math.abs(r.difference) >= 0.005 && !r.semanticNote)
                           .slice(0, 50)
                           .map((r) => (
                             <tr
                               key={r.key}
-                              className={Math.abs(r.difference) >= 0.01 ? 'bg-rose-50/40' : ''}
+                              className={Math.abs(r.difference) >= 0.005 ? 'bg-rose-50/40' : ''}
                             >
                               <td className="py-1 pr-2 font-mono text-slate-600">{r.key}</td>
                               <td className="py-1 px-2 text-right text-slate-700">
@@ -263,7 +278,7 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
                               </td>
                               <td
                                 className={`py-1 pl-2 text-right font-semibold ${
-                                  Math.abs(r.difference) >= 0.01
+                                  Math.abs(r.difference) >= 0.005
                                     ? 'text-rose-700'
                                     : 'text-emerald-700'
                                 }`}
@@ -273,10 +288,30 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
                             </tr>
                           ))}
                       </tbody>
+                      {rec.rows.some((r) => r.semanticNote) && (
+                        <tfoot>
+                          <tr>
+                            <td colSpan={4} className="pt-2">
+                              <ul className="list-disc list-inside text-[10px] text-sky-700 space-y-0.5">
+                                {rec.rows
+                                  .filter((r) => r.semanticNote)
+                                  .map((r, i) => (
+                                    <li key={i}>
+                                      <span className="font-mono">{r.key}</span> — {r.semanticNote}
+                                    </li>
+                                  ))}
+                              </ul>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
-                    {rec.rows.every((r) => Math.abs(r.difference) < 0.01) && (
+                    {rec.rows.every((r) => Math.abs(r.difference) < 0.005 || r.semanticNote) && (
                       <div className="text-[11px] text-emerald-700 py-1">
-                        Todas as {rec.rows.length} células reconciliam a R$ 0,00.
+                        Todas as {rec.rows.length} células reconciliam a R$ 0,00
+                        {rec.rows.some((r) => r.semanticNote)
+                          ? ' (divergências de classe explicadas por semântica histórica).'
+                          : '.'}
                       </div>
                     )}
                   </div>
@@ -304,7 +339,7 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
                     </div>
                     <div
                       className={`font-semibold ${
-                        Math.abs(t.difference) < 0.01 ? 'text-emerald-700' : 'text-rose-700'
+                        Math.abs(t.difference) < 0.005 ? 'text-emerald-700' : 'text-rose-700'
                       }`}
                     >
                       Diferença: {fmtBRL(t.difference)}

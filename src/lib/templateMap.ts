@@ -1743,26 +1743,67 @@ export function findItemRowByName(
  * If a part contains only '.', treat '.' as the decimal separator (OOXML).
  * If a part contains only ',', treat ',' as the decimal separator (BR).
  *
+ * Sign handling (BUG 1 fix): Excel/ExcelJS stores subtraction as addition of a
+ * negative number — `=100-20` is serialized OOXML as `=100+-20`. The previous
+ * naive `split(/(?=[+\-*])/)` produced `["100", "+-20"]`, then treated `+-20`
+ * as POSITIVE (sign taken only from the leading `+`) → +20, losing the minus.
+ * We normalize `+-`→`-` and `--`→`+` BEFORE splitting so signs are preserved.
+ * Parenthesized single numbers (`=100+(-20)`) are unwrapped to their signed
+ * value before tokenization so `(-20)` becomes `-20`.
+ *
  * Cell references (A1, E5) are ignored. "+", "-" and "*" operators split terms.
  */
 export function decomposeFormula(formula: string): number[] {
   if (!formula) return []
   let s = String(formula).trim()
   if (s.startsWith('=')) s = s.slice(1)
-  // split on +, - and * (keep the sign via lookahead)
+
+  // Unwrap parenthesized signed numbers: (±NN) → ±NN. Only unwraps when the
+  // entire parenthesized group is a single signed/unsigned number (optionally
+  // prefixed by +/- from the surrounding operator). This is the only form the
+  // launch-entry formulas actually use, so a full arithmetic parser is overkill
+  // and would risk mis-parsing cell-reference arithmetic like (E6+E7).
+  s = s.replace(/([+\-*/(])\(\s*(-?\d+(?:[.,]\d+)?)\s*\)/g, '$1$2')
+  // Handle a leading "(±NN)" at the very start of the expression.
+  s = s.replace(/^\(\s*(-?\d+(?:[.,]\d+)?)\s*\)/, '$1')
+
+  // Normalize OOXML double-sign forms so a single split-on-operator pass keeps
+  // the correct sign on every term:
+  //   "+-" → "-"  (ExcelJS stores 100-20 as 100+-20)
+  //   "--" → "+"  (double negation, e.g. 100--20 means 100+20)
+  //   "*-" → "*"  handled below — keep the bare operator and let the term carry "-"
+  // Apply repeatedly so chains like "+-+-5" collapse correctly.
+  s = s.replace(/\+-/g, '-').replace(/--/g, '+').replace(/\*-/g, '*')
+
+  // split on +, - and * (keep the sign via lookahead). After the normalization
+  // above, every term begins with either a digit (first term) or a single
+  // operator (+/-/*) followed by a digit — no "+-"/"--" ambiguity remains.
   const parts = s
     .split(/(?=[+\-*])/)
     .map((p) => p.trim())
     .filter(Boolean)
   const nums: number[] = []
   for (const p of parts) {
-    const sign = p.startsWith('-') ? -1 : 1
-    const op = p.startsWith('+') || p.startsWith('-') || p.startsWith('*') ? p[0] : ''
-    let body = op ? p.slice(1).trim() : p.trim()
+    // Determine the sign from the LEADING operator (or bare leading "-").
+    // After normalization, a term is either "NN", "+NN", "-NN" or "*NN".
+    let sign = 1
+    let body = p
+    if (p.startsWith('-')) {
+      sign = -1
+      body = p.slice(1).trim()
+    } else if (p.startsWith('+')) {
+      sign = 1
+      body = p.slice(1).trim()
+    } else if (p.startsWith('*')) {
+      // multiplication is treated as a positive term here (launch formulas
+      // never use "*" between two numbers; it only appears via a stray token)
+      sign = 1
+      body = p.slice(1).trim()
+    }
     if (!body) continue
-    // skip cell references (A1, E5, $A$1)
+    // skip cell references (A1, E5, $A$1) — derived formulas are NOT launches
     if (/^\$?[A-Za-z]+\$?\d+$/.test(body)) continue
-    // strip currency / percent signs
+    // strip currency / percent signs (keep digits, dots, commas, minus)
     body = body.replace(/[^0-9.,-]/g, '')
     if (!body) continue
     // strip a leading minus that survived (already captured as sign)
@@ -1784,6 +1825,34 @@ export function decomposeFormula(formula: string): number[] {
 }
 
 /**
+ * Does this formula represent a "launch" entry (a sum of literal numbers) that
+ * must be decomposed into one transaction per component — as opposed to a
+ * DERIVED formula (SUM(...), cell refs E6+E7, #REF!, function calls) which
+ * only has a single cached value and no per-launch split.
+ *
+ * Heuristic (BUG 2 / BUG 3): a formula is a launch formula when
+ *   - decomposeFormula returns MORE THAN ONE component, AND
+ *   - the formula contains NO cell references (A1, $A$1, E5), AND
+ *   - it contains NO Excel function names (SUM, IF, ROUND, ...), AND
+ *   - it contains no error/ref tokens (#REF!, #DIV/0!, #NAME?).
+ */
+export function isLaunchFormula(formula: string): boolean {
+  if (!formula) return false
+  const parts = decomposeFormula(formula)
+  if (parts.length < 2) return false
+  let s = String(formula).trim()
+  if (s.startsWith('=')) s = s.slice(1)
+  // Cell references like A1, $A$1, E5, Sheet1!E6 → derived, not launch.
+  if (/\$?[A-Za-z]+\$?\d+/.test(s)) return false
+  // Excel function names (SUM, IF, ROUND, VLOOKUP, ...). A function call looks
+  // like NAME( — match letters followed by an opening paren.
+  if (/[A-Za-z]+\s*\(/.test(s)) return false
+  // Error tokens (#REF!, #DIV/0!, #NAME?, ...) → derived / broken.
+  if (/#REF!|#DIV\/0!|#NAME\?|#VALUE!|#N\/A/.test(s)) return false
+  return true
+}
+
+/**
  * Sum the components of a formula. Returns 0 for empty/non-numeric input.
  */
 export function sumFormula(formula: string): number {
@@ -1802,6 +1871,12 @@ export interface ReconciliationRow {
   difference: number
   /** formula components, if the sheet cell was a formula (§3.2) */
   formulaComponents?: number[]
+  /**
+   * When the divergence is explained by an intentional historical semantic
+   * (e.g. the class total formula `=E6+E7+E9` excludes E8 "Divisão Lulu" on
+   * purpose), this carries the explanation. Only set for class-level rows.
+   */
+  semanticNote?: string | null
 }
 
 export interface ReconciliationReport {
@@ -1809,17 +1884,97 @@ export interface ReconciliationReport {
   year: number
   rows: ReconciliationRow[]
   totalDifference: number
-  /** true when every row reconciles to zero */
+  /** true when every row reconciles to zero (within tolerance) */
   ok: boolean
+  /** 'item' = primary item-level recon; 'class' = secondary class-level recon. */
+  level?: 'item' | 'class'
+}
+
+/**
+ * Convert a column letter (A..Z, AA..) to a 1-based column index. Used when
+ * inspecting a total formula's cell references to see which rows it includes.
+ */
+function columnLetterToNumber(letter: string): number {
+  let n = 0
+  for (let i = 0; i < letter.length; i++) {
+    n = n * 26 + (letter.charCodeAt(i) - 64)
+  }
+  return n
+}
+
+/**
+ * Detect whether a class-total formula INTENTIONALLY excludes some item rows
+ * (historical semantic). Example: 2026 Receitas Total `=E6+E7+E9` excludes E8
+ * ("Divisão Lulu"). When that's the case, a class-level divergence between the
+ * total and the sum of ALL items is NOT a parser bug — it's the workbook's own
+ * semantic. Returns an explanation string when intentional exclusion is
+ * detected, null otherwise.
+ *
+ * Heuristic:
+ *   - SUM(range) is NOT an intentional exclusion (covers a contiguous range).
+ *   - An explicit sum of cell refs (E6+E7+E9) where every referenced row is an
+ *     item row AND the referenced set is a PROPER SUBSET of the section's item
+ *     rows → intentional exclusion.
+ */
+export function detectIntentionalExclusion(
+  formula: string | null | undefined,
+  itemRows: number[],
+  monthColumn: number,
+): string | null {
+  if (!formula) return null
+  let s = String(formula).trim()
+  if (s.startsWith('=')) s = s.slice(1)
+  if (!s) return null
+  // SUM(...) covers a contiguous range — not an intentional per-item exclusion.
+  if (/^SUM\s*\(/i.test(s)) return null
+  // Collect cell references in the month column (e.g. E6, E7, $E$9) only.
+  const refRe = /\$?([A-Za-z]+)\$?(\d+)/g
+  const refRows = new Set<number>()
+  let m: RegExpExecArray | null
+  while ((m = refRe.exec(s)) !== null) {
+    const col = columnLetterToNumber(m[1].toUpperCase())
+    if (col === monthColumn) {
+      refRows.add(Number(m[2]))
+    }
+  }
+  if (refRows.size === 0) return null
+  const itemRowSet = new Set(itemRows)
+  // every referenced row must be an item row (otherwise this is some other
+  // derived formula we can't reason about).
+  const allRefsAreItems = [...refRows].every((r) => itemRowSet.has(r))
+  if (!allRefsAreItems) return null
+  const missing = [...itemRowSet].filter((r) => !refRows.has(r))
+  if (missing.length > 0) {
+    return (
+      `Fórmula do total ${formula} referencia ${refRows.size} de ${itemRows.length} ` +
+      `itens da seção — exclui intencionalmente as linhas ${missing.join(', ')} ` +
+      `(semântica histórica intencional, não erro de parser)`
+    )
+  }
+  return null
+}
+
+/**
+ * Floating-point reconciliation tolerance. Half a centavo — small enough to
+ * suppress binary rounding noise (0.0000001 drift from a SUM), large enough
+ * not to flag a real 1-centavo divergence. NEVER confuse a negative SALDO
+ * with a divergence: the test is `ABS(source - reconstructed) > tolerance`.
+ */
+export const RECONCILE_TOLERANCE = 0.005
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
 }
 
 /**
  * Reconcile the imported transactions of one sheet against the original sheet
- * values. `sheetValues` is a map `${itemId}:${month}` → numeric value read
- * DIRECTLY from the sheet's item cells (not the totals). `txByItemMonth` is the
- * same shape built from the imported transactions.
+ * values. `sheetValues` is a map `${key}` → numeric value read DIRECTLY from
+ * the sheet's cells (item cells for item-level, total cells for class-level).
+ * `txByItemMonth` is the same shape built from the imported transactions.
  *
- * Target: difference = R$ 0,00 for every row.
+ * Target: difference = R$ 0,00 for every row. A NEGATIVE source value (e.g.
+ * a negative saldo, a reimbursement) is NOT a divergence by itself — only
+ * `ABS(source - reconstructed) > tolerance` is.
  */
 export function reconcileSheet(
   sheetName: string,
@@ -1850,12 +2005,10 @@ export function reconcileSheet(
     year,
     rows,
     totalDifference,
-    ok: Math.abs(totalDifference) < 0.01 && rows.every((r) => Math.abs(r.difference) < 0.01),
+    ok:
+      Math.abs(totalDifference) < RECONCILE_TOLERANCE &&
+      rows.every((r) => Math.abs(r.difference) < RECONCILE_TOLERANCE),
   }
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
 }
 
 // ---------------------------------------------------------------------------
@@ -2059,18 +2212,38 @@ export function buildImportReport(
   const divergences: ImportReport['divergences'] = []
   for (const rec of reconciliations) {
     for (const row of rec.rows) {
-      if (Math.abs(row.difference) >= 0.01) {
+      // Rows annotated with an intentional-exclusion semanticNote
+      // (class-level historical divergence) are NOT parser divergences.
+      if (row.semanticNote) continue
+      if (Math.abs(row.difference) >= RECONCILE_TOLERANCE) {
         divergences.push({ sheetName: rec.sheetName, key: row.key, difference: row.difference })
       }
     }
   }
 
-  const totals = reconciliations.map((rec) => ({
-    sheetName: rec.sheetName,
-    sheetTotal: round2(rec.rows.reduce((s, r) => s + (r.sheetValue ?? 0), 0)),
-    reconstructedTotal: round2(rec.rows.reduce((s, r) => s + r.reconstructedValue, 0)),
-    difference: rec.totalDifference,
-  }))
+  // Per-sheet totals: prefer the PRIMARY (item-level) reconciliation when both
+  // item-level and class-level reports exist for a sheet, so the summary
+  // doesn't double-count. Falls back to whatever is available.
+  const seenSheets = new Set<string>()
+  const totals: ImportReport['totals'] = []
+  // item-level first, then class-level for sheets without an item-level rec
+  const ordered = [...reconciliations].sort((a, b) =>
+    a.level === 'item' && b.level !== 'item'
+      ? -1
+      : a.level !== 'item' && b.level === 'item'
+        ? 1
+        : 0,
+  )
+  for (const rec of ordered) {
+    if (seenSheets.has(rec.sheetName)) continue
+    seenSheets.add(rec.sheetName)
+    totals.push({
+      sheetName: rec.sheetName,
+      sheetTotal: round2(rec.rows.reduce((s, r) => s + (r.sheetValue ?? 0), 0)),
+      reconstructedTotal: round2(rec.rows.reduce((s, r) => s + r.reconstructedValue, 0)),
+      difference: rec.totalDifference,
+    })
+  }
 
   return {
     sheetsFound,
@@ -2155,6 +2328,20 @@ const RESUMO_YEAR_SET = new Set([2023, 2024, 2025, 2026])
  *
  * Produces NO transactions and NO catalog categories: the legend is purely
  * descriptive metadata.
+ *
+ * BUG 4 fixes applied here:
+ *  (4a) yearsFound now scans EVERY row (not just the top 6) so year-block
+ *       headers like A1=2023, A11=2024, A24=2025 are detected independently
+ *       of whether an observation row matched that year.
+ *  (4b) The "Observação" column header is searched across ALL rows (not just
+ *       the first 6) using `includes` — the real RESUMO tab puts the header
+ *       deep in the sheet (e.g. row 24/25 of the 2025 block). The year for an
+ *       observation row is resolved from the nearest preceding year-block
+ *       header when the row itself carries no year.
+ *  (4c) The legend is limited to the 4 despesa classes (RESUMO_METRIC_CLASSES)
+ *       so Receitas/Investimentos from the main RESUMO table are NOT counted
+ *       (giving 4 legend entries, not 5). Numbers and "R$" values masquerading
+ *       as category names are filtered out.
  */
 export function extractResumoMeta(
   matrix: (string | number | null)[][],
@@ -2167,25 +2354,7 @@ export function extractResumoMeta(
   const rowCount = matrix.length
   const colCount = matrix.reduce((m, r) => Math.max(m, r?.length ?? 0), 0)
 
-  // 1. Locate the "Observação" column by scanning header rows (1..6) for labels
-  //    "Observação", "Observações", "Obs.". Accepts partial matches.
-  const obsLabels = ['OBSERVACOES', 'OBSERVACAO', 'OBSERVACAO DO ANO', 'OBS DO ANO', 'OBS']
-  let obsCol: number | null = null
-  for (let r = 1; r <= Math.min(rowCount - 1, 6) && obsCol === null; r++) {
-    const rowArr = matrix[r] || []
-    for (let c = 1; c < rowArr.length; c++) {
-      const n = normalizeAnchorLabel(String(rowArr[c] ?? ''))
-      if (!n) continue
-      if (obsLabels.some((l) => n === l || n.startsWith(l))) {
-        obsCol = c
-        break
-      }
-    }
-  }
-
-  // 2. Walk every row. If the row carries a class label (cols A–D) AND has
-  //    text in the observação column, record an observation. Try to find a
-  //    supported year in the row; fall back to 0 (meaning "no year bound").
+  // helper: find a class id in a row by scanning cols A–D for a known class label
   const findClassIdInRow = (rowArr: (string | number | null)[]): string | null => {
     for (let c = 1; c <= Math.min(4, rowArr.length - 1); c++) {
       const n = normalizeAnchorLabel(String(rowArr[c] ?? ''))
@@ -2197,6 +2366,56 @@ export function extractResumoMeta(
     return null
   }
 
+  // (4a) Pre-build a row → year map by scanning EVERY row for a bare 4-digit
+  //      supported year (block headers like A1=2023, A11=2024, A24=2025).
+  //      These year markers are detected independently of observations.
+  const rowYear: Record<number, number> = {}
+  for (let r = 1; r < rowCount; r++) {
+    const rowArr = matrix[r] || []
+    for (let c = 1; c < rowArr.length; c++) {
+      const n = normalizeAnchorLabel(String(rowArr[c] ?? ''))
+      const m = n.match(/^(\d{4})$/)
+      if (m) {
+        const y = Number(m[1])
+        if (RESUMO_YEAR_SET.has(y)) {
+          rowYear[r] = y
+          yearsFound.add(y)
+          break
+        }
+      }
+    }
+  }
+  // Resolve the year for an observation row: exact row first, then scan
+  // upward for the nearest year-block header (so a row 25 observation
+  // inherits year 2025 from the A24 block header).
+  const yearForRow = (r: number): number => {
+    if (rowYear[r]) return rowYear[r]
+    for (let rr = r - 1; rr >= 1; rr--) {
+      if (rowYear[rr]) return rowYear[rr]
+    }
+    return 0
+  }
+
+  // (4b) Locate the "Observação" column by scanning ALL rows (not just 1..6).
+  //      The real RESUMO tab puts this header deep in the sheet. Uses `includes`
+  //      so "Observação do ano" / "Observações" all match.
+  const obsLabels = ['OBSERVACOES', 'OBSERVACAO', 'OBSERVACAO DO ANO', 'OBS DO ANO', 'OBS']
+  let obsCol: number | null = null
+  for (let r = 1; r < rowCount && obsCol === null; r++) {
+    const rowArr = matrix[r] || []
+    for (let c = 1; c < rowArr.length; c++) {
+      const n = normalizeAnchorLabel(String(rowArr[c] ?? ''))
+      if (!n) continue
+      if (obsLabels.some((l) => n === l || n.includes(l))) {
+        obsCol = c
+        break
+      }
+    }
+  }
+
+  // 2. Walk every row. If the row carries a despesa class label AND has text
+  //    in the observação column, record an observation. The year comes from
+  //    the row itself or the nearest preceding year-block header (4a fix).
   if (obsCol !== null) {
     for (let r = 1; r < rowCount; r++) {
       const rowArr = matrix[r] || []
@@ -2205,14 +2424,13 @@ export function extractResumoMeta(
       // only the 4 despesa classes carry qualitative observations (per spec)
       if (!RESUMO_METRIC_CLASSES.has(classId)) continue
 
-      // find a supported 4-digit year anywhere in the row
-      let year = 0
+      // also pick up any supported year that appears in THIS row (so a row
+      // like "DESPESAS FIXAS | 2024 | <text>" binds the observation to 2024)
       for (let c = 1; c < rowArr.length; c++) {
         const m = normalizeAnchorLabel(String(rowArr[c] ?? '')).match(/(\d{4})/)
         if (m) {
           const y = Number(m[1])
           if (RESUMO_YEAR_SET.has(y)) {
-            year = y
             yearsFound.add(y)
             break
           }
@@ -2227,14 +2445,19 @@ export function extractResumoMeta(
       ) {
         continue
       }
+      const year = yearForRow(r)
       observations.push({ year, metric: classId, text })
     }
   }
 
   // 3. Legend: find a "LEGENDA" anchor, then read each subsequent row that
-  //    carries a class label followed by the list of categories that compose
-  //    it (comma/semicolon separated). Pure metadata — never creates catalog
-  //    categories.
+  //    carries a DESPESA class label followed by the list of categories that
+  //    compose it (comma/semicolon separated). Pure metadata — never creates
+  //    catalog categories.
+  //    (4c) ONLY the 4 despesa classes belong in the legend — Receitas and
+  //    Investimentos from the main RESUMO table are excluded so the legend
+  //    count is 4, not 5. Numbers and "R$" values are filtered out of the
+  //    category list.
   let legendStartRow = -1
   for (let r = 1; r < rowCount; r++) {
     const rowArr = matrix[r] || []
@@ -2261,6 +2484,8 @@ export function extractResumoMeta(
         if (classId) break
       }
       if (!classId) continue
+      // (4c) only the 4 despesa classes belong in the legend
+      if (!RESUMO_METRIC_CLASSES.has(classId)) continue
       // collect category names from the cells AFTER the class label
       const cats: string[] = []
       for (let c = classCol + 1; c < rowArr.length; c++) {
@@ -2283,6 +2508,9 @@ export function extractResumoMeta(
           ) {
             continue
           }
+          // (4c) skip numbers and currency values masquerading as categories
+          if (/^R\$/.test(n)) continue
+          if (/^\d+(?:[.,]\d+)?$/.test(n)) continue
           cats.push(p)
         }
       }
@@ -2295,9 +2523,10 @@ export function extractResumoMeta(
     }
   }
 
-  // 4. Also collect supported years from the top header rows even when no
-  //    observation row matched (so yearsFound reflects the sheet's coverage).
-  for (let r = 1; r <= Math.min(rowCount - 1, 6); r++) {
+  // 4. (4a) Collect supported years from ALL rows so yearsFound reflects the
+  //    sheet's full year coverage even when no observation row matched a year
+  //    (e.g. a year block with no observations still counts).
+  for (let r = 1; r < rowCount; r++) {
     const rowArr = matrix[r] || []
     for (let c = 1; c < rowArr.length; c++) {
       const m = normalizeAnchorLabel(String(rowArr[c] ?? '')).match(/(\d{4})/)
