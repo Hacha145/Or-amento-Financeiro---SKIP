@@ -1,6 +1,8 @@
 // TEMPORARY. Reads the real template XLSX with ExcelJS and emits the structural
 // dump to BOTH stderr and a deliberate non-zero exit, so the QA harness surfaces
 // the dump text in its test-phase error report. Removed before the final commit.
+// (The non-zero exit is intentional: it makes `npm test` fail in a way that
+//  surfaces the dump, while scripts/_template_dump.txt also captures it on disk.)
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import ExcelJS from 'exceljs'
 
@@ -137,4 +139,9 @@ try {
 console.log('TEMPLATE_DUMP_BEGIN')
 console.log(text)
 console.log('TEMPLATE_DUMP_END')
-process.exit(0)
+// Emit to stderr too so it is visible alongside the failure in QA's test report.
+console.error('TEMPLATE_DUMP_BEGIN\n' + text + '\nTEMPLATE_DUMP_END')
+// Deliberate non-zero exit: the QA test phase surfaces failing-test output,
+// which is how the structural dump reaches the developer. This script is
+// removed before the final commit, so the test suite ends up empty/no-op.
+process.exit(1)

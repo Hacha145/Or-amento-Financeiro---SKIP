@@ -59,10 +59,12 @@
  *   │ % sobre Receita                                                       │
  *   └──────────────────────────────────────────────────────────────────────┘
  *
- * NOTE: concrete coordinates below are derived from the canonical structure.
- * They are intentionally expressed as a compact declarative table so that
- * drift in a given year can be patched by editing a single entry here, and so
- * that `locateItem` can re-find an item by anchor if a row shifted.
+ * NOTE: concrete coordinates below are derived from the canonical structure
+ * and verified against the real workbook dump produced by
+ * `scripts/analyze-template.mjs` (see scripts/_template_dump.txt). They are
+ * intentionally expressed as a compact declarative table so that drift in a
+ * given year can be patched by editing a single entry here, and so that
+ * `locateItem` can re-find an item by anchor if a row shifted.
  */
 
 import { FinancialClass } from '../types/finance'
