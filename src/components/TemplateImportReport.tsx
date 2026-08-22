@@ -46,12 +46,22 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
   )
   const hasDivergence =
     report.divergences.length > 0 ||
-    reconciliations.some((r) => !r.ok) ||
+    reconciliations.filter((r) => r.level === 'item').some((r) => !r.ok) ||
     divergenceSkippedSheets.length > 0
+  // When item-level (primary) reconciliation is fully OK but the class-level
+  // diagnostic carries intentional-exclusion semantic notes (historical
+  // formula differences, e.g. =E6+E7+E9 excluding E8 "Divisão Lulu"), surface
+  // an INFORMATIVE banner instead of the error banner — these are NOT parser
+  // failures, just the workbook's own intentional design.
+  const hasClassSemanticInfo =
+    !hasDivergence &&
+    reconciliations
+      .filter((r) => r.level === 'class')
+      .some((r) => r.rows.some((row) => row.semanticNote))
 
   return (
     <div className="space-y-4">
-      {/* Divergence banner */}
+      {/* Divergence / info banner */}
       {hasDivergence ? (
         <Card className="border-amber-300 bg-amber-50/50 shadow-xs">
           <CardHeader className="pb-2">
@@ -62,6 +72,20 @@ export const TemplateImportReport: React.FC<Props> = ({ result }) => {
             <CardDescription className="text-xs text-amber-800">
               A importação não foi concluída silenciosamente. Revise os detalhes abaixo antes de
               considerar os dados confiáveis.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : hasClassSemanticInfo ? (
+        <Card className="border-sky-300 bg-sky-50/50 shadow-xs">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-bold flex items-center gap-2 text-sky-900">
+              <Info className="w-5 h-5 text-sky-600" />
+              Importação íntegra — diferenças de fórmula histórica
+            </CardTitle>
+            <CardDescription className="text-xs text-sky-800">
+              A reconciliação item-level (primária) está 100% reconciliada. As diferenças na
+              reconciliação de classe são devidas a fórmulas históricas que excluem intencionalmente
+              alguns itens (ex.: =E6+E7+E9 em vez de =SUM(E6:E9)) — não são erros de parser.
             </CardDescription>
           </CardHeader>
         </Card>

@@ -16,6 +16,9 @@ export type TransactionSource =
   | 'xlsx'
   | 'spreadsheet_seed'
   | 'legacy_migration'
+  // historical template (.xlsx) import — transactions extracted from the
+  // canonical annual workbook, month-precision dates, real signed values.
+  | 'legacy_xlsx'
   // legacy values from earlier app versions, kept for backward compatibility
   | 'import_csv'
   | 'import_ofx'

@@ -209,7 +209,8 @@ export default function Welcome() {
             setTemplateResult(result)
             setStep('template')
             const divergent =
-              result.report.divergences.length > 0 || result.reconciliations.some((r) => !r.ok)
+              result.reconciliations.filter((r) => r.level === 'item').some((r) => !r.ok) ||
+              result.report.divergences.length > 0
             toast({
               title: divergent ? 'Importação com divergência' : 'Template lido',
               description: divergent
@@ -365,13 +366,47 @@ export default function Welcome() {
     setStep('done')
   }
 
-  // Finish after a template import: mark setup complete and go to dashboard.
+  // Finish after a template import: persist the extracted historical
+  // transactions into FinanceContext (BUG A) BEFORE marking setup complete
+  // and navigating away — otherwise the extracted transactions in
+  // templateResult.transactions were silently lost.
+  // Conversion rules (see task):
+  //   date        -> `${year}-${month(2-digit)}-01` (historical, month-precision)
+  //   description -> the item's name from financialItems (fallback: itemId)
+  //   amount      -> the real SIGNED value (NO Math.abs — reimbursements/
+  //                  reversals must keep their negative sign)
+  //   type        -> 'income' when classId === 'receitas', else 'expense'
+  //   source      -> 'legacy_xlsx'
+  //   notes       -> concatenated anchor notes (or empty string)
+  // The v2 hierarchy (financialItems/Classes/Categories) is already persisted
+  // by migrateToV2Hierarchy() in the FinanceProvider, so nothing extra is
+  // needed here for the catalog.
   const handleTemplateFinish = () => {
-    updateSettings({ setupCompleted: true })
-    toast({
-      title: 'Template importado',
-      description: 'Sua planilha modelo foi processada com sucesso.',
-    })
+    if (templateResult && templateResult.transactions.length > 0) {
+      const txData = templateResult.transactions.map((tx) => {
+        const item = financialItems.find((i) => i.id === tx.itemId)
+        return {
+          date: `${tx.year}-${String(tx.month).padStart(2, '0')}-01`,
+          description: item?.name ?? tx.itemId,
+          amount: tx.value,
+          type: (tx.classId === 'receitas' ? 'income' : 'expense') as 'expense' | 'income',
+          notes: tx.notes.length ? tx.notes.join('; ') : '',
+          source: 'legacy_xlsx' as const,
+        }
+      })
+      const res = importTransactionsBatch(txData)
+      updateSettings({ setupCompleted: true })
+      toast({
+        title: 'Template importado',
+        description: `${res.imported} transações da planilha histórica foram salvas.`,
+      })
+    } else {
+      updateSettings({ setupCompleted: true })
+      toast({
+        title: 'Template importado',
+        description: 'Sua planilha modelo foi processada com sucesso.',
+      })
+    }
     navigate('/')
   }
 
