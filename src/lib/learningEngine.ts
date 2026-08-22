@@ -1,5 +1,5 @@
 import { Category, LearnedMapping } from '../types/finance'
-import { tokenEquals, phraseMatches, normalizeRaw } from './tokenizer'
+import { tokenEquals, phraseMatches, normalizeRaw, extractTokens } from './tokenizer'
 
 /**
  * Intelligent normalization for transaction descriptions:
@@ -544,6 +544,27 @@ export function learnExactRule(
       lastUsedAt: now,
     },
   ]
+}
+
+/**
+ * Suggest candidate terms for creating a classification rule from a corrected
+ * transaction's description (§2.14). Token/phrase-based — NEVER substring.
+ *
+ * Returns candidates ordered from most specific (full normalized description)
+ * to least specific (individual tokens), so the UI can offer the user a choice
+ * of which term to use in the new rule's condition.
+ *
+ * A rule created from a more specific term (full phrase) always wins over a
+ * rule created from a generic single token, because the classification engine
+ * evaluates rules by priority and matches phrases by specificity.
+ */
+export function suggestRuleTerms(description: string): {
+  full: string
+  phrases: string[]
+  tokens: string[]
+} {
+  const { normalized, phrases, uniqueTokens } = extractTokens(description)
+  return { full: normalized, phrases, tokens: uniqueTokens }
 }
 
 /**

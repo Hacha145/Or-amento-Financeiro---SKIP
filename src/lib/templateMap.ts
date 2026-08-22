@@ -1074,23 +1074,44 @@ export function validateByAnchor(
 ): { present: string[]; missing: string[] } {
   const present: string[] = []
   const missing: string[] = []
-  const rowCells = matrix[cell.row] || []
-  // search the row + a small window above/below for the anchor text
-  const window = [matrix[cell.row - 1] || [], rowCells, matrix[cell.row + 1] || []]
+
+  // Class-level anchors (DESPESAS FIXAS, RECEITAS, …) sit far above the item
+  // row, so a narrow ±1 window would always report them missing. Validate
+  // them across the whole sheet's class/label columns instead. Item-name
+  // anchors must sit on the EXACT expected row — that is what confirms the
+  // coordinate is still correct (a shifted row → fall back to search).
+  const classLabelSet = new Set(Object.values(CANONICAL_CLASS_LABELS).map(normalizeAnchorLabel))
+  const classCols = Array.from(new Set([map.classColumn, map.labelColumn].filter((c) => c != null)))
+  const exactRow = matrix[cell.row] || []
+
   for (const anchor of cell.anchors) {
     const normAnchor = normalizeAnchorLabel(anchor)
     if (!normAnchor) {
       missing.push(anchor)
       continue
     }
-    const found = window.some((rowArr) =>
-      rowArr.some((c) => normalizeAnchorLabel(String(c ?? '')) === normAnchor),
-    )
-    // also allow "contains" for multi-word anchors where the sheet split them
-    const foundContains = window.some((rowArr) =>
-      rowArr.some((c) => normalizeAnchorLabel(String(c ?? '')).includes(normAnchor)),
-    )
-    if (found || foundContains) present.push(anchor)
+    const isClassAnchor = classLabelSet.has(normAnchor)
+    let found = false
+    if (isClassAnchor) {
+      // broad search across the whole sheet, class/label columns only
+      for (let r = 1; r < matrix.length && !found; r++) {
+        const rowArr = matrix[r] || []
+        for (const c of classCols) {
+          const n = normalizeAnchorLabel(String(rowArr[c] ?? ''))
+          if (n === normAnchor || n.includes(normAnchor)) {
+            found = true
+            break
+          }
+        }
+      }
+    } else {
+      // item-name anchor: must be on the exact expected row (any column)
+      found = exactRow.some((c) => {
+        const n = normalizeAnchorLabel(String(c ?? ''))
+        return n === normAnchor || n.includes(normAnchor)
+      })
+    }
+    if (found) present.push(anchor)
     else missing.push(anchor)
   }
   return { present, missing }

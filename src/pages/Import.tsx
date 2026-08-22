@@ -52,6 +52,7 @@ import {
 } from '@/lib/learningEngine'
 import { useToast } from '@/hooks/use-toast'
 import { importTemplateXLSX, TemplateImportResult } from '@/lib/templateImporter'
+import { TemplateImportReport } from '@/components/TemplateImportReport'
 import { Layers, AlertTriangle } from 'lucide-react'
 
 type ImportStage = 'upload' | 'mapping' | 'preview' | 'success' | 'template'
@@ -481,6 +482,45 @@ export default function ImportBank() {
     })
   }
 
+  // Import a historical XLSX template workbook (Part 1 — leitura da planilha
+  // histórica). Runs the full pipeline (parse → detect → anchor-validate →
+  // extract → reconcile → report) and surfaces the diagnostic report.
+  const handleTemplateFile = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      toast({
+        title: 'Arquivo inválido',
+        description: 'O template histórico deve ser um arquivo .xlsx',
+        variant: 'destructive',
+      })
+      return
+    }
+    setTemplateBusy(true)
+    try {
+      const buf = await file.arrayBuffer()
+      const result = await importTemplateXLSX(buf, financialItems, classificationRules)
+      setTemplateResult(result)
+      setStage('template')
+      const divergent =
+        result.report.divergences.length > 0 || result.reconciliations.some((r) => !r.ok)
+      toast({
+        title: divergent ? 'Importação com divergência' : 'Template importado',
+        description: divergent
+          ? 'Revise o relatório de diagnóstico antes de concluir.'
+          : `${result.transactions.length} transações extraídas de ${result.report.sheetsFound.length} aba(s).`,
+        variant: divergent ? 'destructive' : 'default',
+      })
+    } catch (err) {
+      console.error('Template import error', err)
+      toast({
+        title: 'Erro ao importar template',
+        description: err instanceof Error ? err.message : 'Falha desconhecida na leitura.',
+        variant: 'destructive',
+      })
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
   // Final Commit to Finance Context
   const handleCommitImport = () => {
     const payload = previewItems.map((item) => {
@@ -522,7 +562,7 @@ export default function ImportBank() {
       {/* STAGE 1: UPLOAD */}
       {stage === 'upload' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 space-y-4">
             <Card className="border-slate-200/80 shadow-xs">
               <CardHeader>
                 <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -567,6 +607,58 @@ export default function ImportBank() {
                     </Badge>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Historical template import (Part 1) */}
+            <Card className="border-emerald-200/80 shadow-xs">
+              <CardHeader>
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-emerald-600" />
+                  Importar planilha histórica (template .xlsx)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Leitura correta da planilha anual: detecta aba + ano + classe + categoria + item +
+                  mês, valida por âncoras (sem adivinhar posições), decompõe fórmulas multi-valor e
+                  reconcilia totais. Em caso de divergência, mostra um relatório de diagnóstico.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const f = Array.from(e.dataTransfer.files)[0]
+                    if (f) handleTemplateFile(f)
+                  }}
+                  className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/20 transition-all rounded-xl p-6 text-center flex flex-col items-center justify-center cursor-pointer relative"
+                >
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) handleTemplateFile(f)
+                    }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2">
+                    <Layers className="w-6 h-6" />
+                  </div>
+                  <p className="font-semibold text-slate-800 text-sm">
+                    {templateBusy ? 'Lendo planilha…' : 'Arraste o template .xlsx aqui'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Ou clique para selecionar. Aba(s) "Orçamento &lt;ANO&gt;".
+                  </p>
+                </div>
+                {templateBusy && (
+                  <div className="text-xs text-emerald-700 flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Processando: parse → detectar → validar âncoras → extrair → reconciliar →
+                    relatório.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -903,6 +995,36 @@ export default function ImportBank() {
             </Button>
           </CardFooter>
         </Card>
+      )}
+
+      {/* STAGE: TEMPLATE DIAGNOSTIC REPORT */}
+      {stage === 'template' && templateResult && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Layers className="w-5 h-5 text-emerald-600" />
+                Relatório de importação do template
+              </h2>
+              <p className="text-xs text-slate-500">
+                Diagnóstico completo pós-importação. Abas, anos, estruturas, categorias, itens,
+                células, fórmulas, divergências e totais planilha vs reconstruídos.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTemplateResult(null)
+                setStage('upload')
+              }}
+              className="text-xs"
+            >
+              Voltar
+            </Button>
+          </div>
+          <TemplateImportReport result={templateResult} />
+        </div>
       )}
 
       {/* STAGE 4: SUCCESS */}

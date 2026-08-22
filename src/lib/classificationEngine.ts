@@ -174,25 +174,61 @@ function scoreItem(
   for (const al of item.aliases) terms.push(al)
   terms.push(item.name)
 
-  let best = { score: 0, matchedTerm: null as string | null, confidence: 0 }
+  type Hit = { term: string; isPhrase: boolean; tokenLen: number; charLen: number }
+  const hits: Hit[] = []
 
   for (const term of terms) {
     if (!term) continue
     const pTokens = phraseTokens(term)
     if (pTokens.length === 0) continue
-    let matched = false
-    let score = 0
     if (pTokens.length === 1) {
       // single token → token equality (NOT substring)
-      matched = tokenEquals(description, term)
-      score = matched ? 40 + pTokens[0].length : 0
+      if (tokenEquals(description, term)) {
+        hits.push({ term, isPhrase: false, tokenLen: 1, charLen: pTokens[0].length })
+      }
     } else {
       // multi-word phrase → contiguous token sub-sequence
-      matched = phraseMatches(description, term)
-      score = matched ? 60 + pTokens.join('').length : 0
+      if (phraseMatches(description, term)) {
+        hits.push({
+          term,
+          isPhrase: true,
+          tokenLen: pTokens.length,
+          charLen: pTokens.join('').length,
+        })
+      }
     }
-    if (score > best.score) {
-      best = { score, matchedTerm: term, confidence: matched ? 75 : 0 }
+  }
+
+  if (hits.length === 0) return { score: 0, matchedTerm: null, confidence: 0 }
+
+  // Confidence tiers (§2.12):
+  //   multi-token phrase → 90 (expressão específica)
+  //   2+ single-token matches → 75 (conjunto forte de palavras)
+  //   single token that IS the item NAME → 75 (specific enough to auto-apply)
+  //   single generic keyword → 50 (palavra genérica → review)
+  const phraseHits = hits.filter((h) => h.isPhrase)
+  const singleHits = hits.filter((h) => !h.isPhrase)
+  const itemNameNorm = normalizeRaw(item.name)
+
+  let best: { score: number; matchedTerm: string | null; confidence: number } = {
+    score: 0,
+    matchedTerm: null,
+    confidence: 0,
+  }
+
+  if (phraseHits.length > 0) {
+    const longest = phraseHits.sort((a, b) => b.tokenLen - a.tokenLen)[0]
+    best = { score: 70 + longest.charLen, matchedTerm: longest.term, confidence: 90 }
+  } else if (singleHits.length >= 2) {
+    const longest = singleHits.sort((a, b) => b.charLen - a.charLen)[0]
+    best = { score: 50 + longest.charLen, matchedTerm: longest.term, confidence: 75 }
+  } else {
+    const m = singleHits[0]
+    const isName = normalizeRaw(m.term) === itemNameNorm
+    best = {
+      score: 30 + m.charLen,
+      matchedTerm: m.term,
+      confidence: isName ? 75 : 50,
     }
   }
   return best
@@ -220,56 +256,63 @@ export function matchMerchant(description: string): {
 } {
   if (!description) return { merchant: null, reason: null }
 
+  const tokens = tokenize(description)
+
   // --- Detect + strip a leading payment intermediator (§2.11) ---
+  // Intermediators (Mercado Pago, PayPal, etc.) are NEVER the final merchant.
+  // Detect one as a LEADING token/phrase, strip it, then evaluate the rest.
   let cleanedDesc = description
-  const intermediator = MERCHANTS.find(
-    (m) =>
-      m.active &&
-      m.kind === 'intermediator' &&
-      m.aliases.some((a) => {
-        // only match the intermediator as a leading token / prefix token
-        const aNorm = normalizeRaw(a)
-        if (!aNorm) return false
-        const tokens = tokenize(description)
-        // match first token equality OR a leading token-prefix like "MP*LOJA"
-        if (!aNorm.includes(' ')) {
-          return tokens.length > 0 && (tokens[0] === aNorm || tokens[0].startsWith(aNorm))
+  for (const m of MERCHANTS) {
+    if (!m.active || m.kind !== 'intermediator') continue
+    let matched = false
+    for (const alias of m.aliases) {
+      const aNorm = normalizeRaw(alias)
+      if (!aNorm) continue
+      if (!aNorm.includes(' ')) {
+        // single-token alias: match leading token equality or prefix
+        if (tokens.length > 0 && (tokens[0] === aNorm || tokens[0].startsWith(aNorm))) {
+          cleanedDesc = tokens.filter((t) => !(t === aNorm || t.startsWith(aNorm))).join(' ')
+          matched = true
+          break
         }
-        return phraseMatches(description, a)
-      }),
-  )
-  if (intermediator) {
-    // strip the intermediator's first token and re-tokenize via normalize
-    const firstAlias =
-      intermediator.aliases.map(normalizeRaw).find((a) => a && !a.includes(' ')) || ''
-    if (firstAlias) {
-      const tokens = tokenize(description)
-      cleanedDesc = tokens.filter((t) => !(t === firstAlias || t.startsWith(firstAlias))).join(' ')
+      } else {
+        // multi-word phrase alias: match as a LEADING phrase
+        const pTokens = aNorm.split(' ')
+        if (pTokens.length <= tokens.length && pTokens.every((t, i) => tokens[i] === t)) {
+          cleanedDesc = tokens.slice(pTokens.length).join(' ')
+          matched = true
+          break
+        }
+      }
     }
+    if (matched) break
   }
 
-  // --- Match non-intermediator merchants by phrase specificity ---
+  // --- Match non-intermediator merchants by phrase specificity (§2.5) ---
+  // Priority hierarchy: 1 estabelecimento → 2 alias → (3 regra composta is
+  // handled by ClassificationRules above) → 4 palavra completa → 5 genérico.
+  // Specificity: longer phrases win. "AMAZON PRIME" (2 tokens) beats "AMAZON"
+  // (1 token) so the subscription wins over the marketplace (§2.9).
   const candidates: { merchant: Merchant; alias: string; specificity: number }[] = []
   for (const m of MERCHANTS) {
     if (!m.active || m.kind === 'intermediator') continue
     for (const alias of m.aliases) {
       const aNorm = normalizeRaw(alias)
       if (!aNorm) continue
-      const haystack = aNorm.includes(' ') ? cleanedDesc : description
-      if (phraseMatches(haystack, alias)) {
+      if (phraseMatches(cleanedDesc, alias)) {
         candidates.push({ merchant: m, alias, specificity: phraseTokens(alias).length })
       }
     }
   }
   if (candidates.length === 0) {
     // fall back to single-token merchant matches (generic, confidence 50)
-    const tokens = tokenSet(description)
+    const cleanedTokens = tokenSet(cleanedDesc)
     for (const m of MERCHANTS) {
       if (!m.active || m.kind !== 'generic') continue
       for (const alias of m.aliases) {
         const aNorm = normalizeRaw(alias)
         if (!aNorm || aNorm.includes(' ')) continue
-        if (tokens.has(aNorm)) {
+        if (cleanedTokens.has(aNorm)) {
           return { merchant: m, reason: `Estabelecimento genérico: token '${aNorm}'` }
         }
       }

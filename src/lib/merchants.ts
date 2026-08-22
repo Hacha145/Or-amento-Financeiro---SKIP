@@ -4,8 +4,9 @@
  *
  * Part 2 of the prompt: inteligência de classificação de transações.
  *
- * Each merchant carries the stable ids of its target class / category / item
- * (see src/lib/catalog.ts), a priority, a confidence level, and an active flag.
+ * Each merchant carries a stable `id`, the stable ids of its target class /
+ * category / item (see src/lib/catalog.ts), a priority, a confidence level,
+ * and an active flag.
  *
  * CRITICAL RULES:
  *  - Matching is TOKEN-based, never substring. "OVOS" must match the token
@@ -27,6 +28,8 @@ export type ConfidenceLevel =
   | 0 // abaixo do limiar → revisão
 
 export interface Merchant {
+  /** Stable unique id, e.g. 'meli', 'amazon', 'amazon-prime' */
+  id: string
   /** Canonical display name (pt-BR) */
   name: string
   /** Aliases — additional tokens / expressions that identify this merchant.
@@ -70,6 +73,36 @@ export const SUBSCRIPTION_DESTINATION = {
 } as const
 
 /**
+ * Canonical supermarket destination:
+ *   Despesas variáveis → Alimentação → Supermercado
+ */
+export const SUPERMERCADO_DESTINATION = {
+  classId: 'despesas_variaveis',
+  categoryId: 'cat-variaveis-alimentacao',
+  itemId: 'item-supermercado',
+} as const
+
+/**
+ * Canonical restaurant destination:
+ *   Despesas adicionais → Lazer → Restaurantes/bares
+ */
+export const RESTAURANTE_DESTINATION = {
+  classId: 'despesas_adicionais',
+  categoryId: 'cat-adicionais-lazer',
+  itemId: 'item-restaurantes-bares',
+} as const
+
+/**
+ * Canonical Uber destination:
+ *   Despesas adicionais → Outros → Uber
+ */
+export const UBER_DESTINATION = {
+  classId: 'despesas_adicionais',
+  categoryId: 'cat-adicionais-outros',
+  itemId: 'item-uber',
+} as const
+
+/**
  * Initial merchant registry. Add freely — matching is exact-token, so adding a
  * merchant never risks mis-classifying unrelated transactions.
  *
@@ -80,8 +113,9 @@ export const SUBSCRIPTION_DESTINATION = {
 export const MERCHANTS: Merchant[] = [
   // ----- Marketplaces (§2.8) -----
   {
+    id: 'meli',
     name: 'Mercado Livre',
-    aliases: ['MERCADO LIVRE', 'MERCADOLIVRE', 'MERCADO L', 'MELI', 'MERCADO LIVRE COMPRAS'],
+    aliases: ['MERCADO LIVRE', 'MERCADOLIVRE', 'MELI'],
     ...MARKETPLACE_DESTINATION,
     priority: 1000,
     confidence: 98,
@@ -89,8 +123,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'amazon',
     name: 'Amazon',
-    aliases: ['AMAZON', 'AMAZON BR', 'AMAZON COM BR', 'AMAZON.COM.BR', 'AMAZONBR'],
+    aliases: ['AMAZON', 'AMAZON BR', 'AMAZON.COM.BR'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 90,
@@ -99,8 +134,9 @@ export const MERCHANTS: Merchant[] = [
   },
   {
     // §2.9: AMAZON PRIME is a subscription, NOT a marketplace purchase.
+    id: 'amazon-prime',
     name: 'Amazon Prime',
-    aliases: ['AMAZON PRIME', 'PRIME VIDEO', 'AMAZONPRIME'],
+    aliases: ['AMAZON PRIME', 'PRIME VIDEO'],
     ...SUBSCRIPTION_DESTINATION,
     priority: 1000,
     confidence: 98,
@@ -108,8 +144,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'subscription',
   },
   {
+    id: 'shopee',
     name: 'Shopee',
-    aliases: ['SHOPEE', 'SHOPEE BR', 'SHOPEE COM BR'],
+    aliases: ['SHOPEE', 'SHOPEE BR'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -117,8 +154,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'aliexpress',
     name: 'AliExpress',
-    aliases: ['ALIEXPRESS', 'ALI EXPRESS', 'ALIEXPRESS COM BR'],
+    aliases: ['ALIEXPRESS', 'ALI EXPRESS'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -126,8 +164,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'temu',
     name: 'Temu',
-    aliases: ['TEMU', 'TEMU COM', 'TEMU COM BR'],
+    aliases: ['TEMU'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -135,6 +174,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'shein',
     name: 'SHEIN',
     aliases: ['SHEIN', 'SHEIN BR'],
     ...MARKETPLACE_DESTINATION,
@@ -144,6 +184,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'magalu',
     name: 'Magalu',
     aliases: ['MAGALU', 'MAGAZINE LUIZA', 'MAGAZINELUIZA'],
     ...MARKETPLACE_DESTINATION,
@@ -153,8 +194,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'americanas',
     name: 'Americanas',
-    aliases: ['AMERICANAS', 'AMERICANA', 'LOJAS AMERICANAS'],
+    aliases: ['AMERICANAS', 'LOJAS AMERICANAS'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -162,8 +204,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'casas-bahia',
     name: 'Casas Bahia',
-    aliases: ['CASAS BAHIA', 'CASASBAHIA', 'CASAS DA BAHIA'],
+    aliases: ['CASAS BAHIA', 'CASASBAHIA'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -171,8 +214,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'ponto',
     name: 'Ponto',
-    aliases: ['PONTO', 'PONTO FRIO', 'PONTOFRIO', 'PONTO Frio'.toUpperCase()],
+    aliases: ['PONTO', 'PONTO FRIO', 'PONTOFRIO'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -180,8 +224,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'extra',
     name: 'Extra',
-    aliases: ['EXTRA', 'EXTRA COM BR', 'EXTRA SUPERMERCADO'],
+    aliases: ['EXTRA', 'EXTRA.COM'],
     ...MARKETPLACE_DESTINATION,
     priority: 900,
     confidence: 90,
@@ -189,17 +234,19 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
-    name: 'Carrefour Marketplace',
-    aliases: ['CARREFOUR', 'CARREFOUR MARKETPLACE', 'CARREFOUR COM BR'],
-    ...MARKETPLACE_DESTINATION,
+    id: 'carrefour',
+    name: 'Carrefour',
+    aliases: ['CARREFOUR', 'CARREFOUR BR'],
+    ...SUPERMERCADO_DESTINATION,
     priority: 900,
     confidence: 90,
     active: true,
-    kind: 'marketplace',
+    kind: 'merchant',
   },
   {
+    id: 'kabum',
     name: 'KaBuM!',
-    aliases: ['KABUM', 'KABUM COM BR', 'KABUM!'],
+    aliases: ['KABUM', 'KA BUM', 'KABUM!'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -207,8 +254,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'netshoes',
     name: 'Netshoes',
-    aliases: ['NETSHOES', 'NETSHOES COM BR'],
+    aliases: ['NETSHOES'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -216,8 +264,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'dafiti',
     name: 'Dafiti',
-    aliases: ['DAFITI', 'DAFITI COM BR'],
+    aliases: ['DAFITI'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -225,8 +274,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'madeiramadeira',
     name: 'MadeiraMadeira',
-    aliases: ['MADEIRAMADEIRA', 'MADEIRA MADEIRA', 'MADEIRAMADEIRA COM BR'],
+    aliases: ['MADEIRA MADEIRA', 'MADEIRAMADEIRA'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -234,8 +284,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'mobly',
     name: 'Mobly',
-    aliases: ['MOBLY', 'MOBLY COM BR'],
+    aliases: ['MOBLY'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -243,8 +294,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'enjoei',
     name: 'Enjoei',
-    aliases: ['ENJOEI', 'ENJOEI COM BR'],
+    aliases: ['ENJOEI'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -252,8 +304,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'marketplace',
   },
   {
+    id: 'olx',
     name: 'OLX',
-    aliases: ['OLX', 'OLX COM BR', 'OLXBR'],
+    aliases: ['OLX', 'OLX BR'],
     ...MARKETPLACE_DESTINATION,
     priority: 950,
     confidence: 98,
@@ -263,74 +316,71 @@ export const MERCHANTS: Merchant[] = [
 
   // ----- Other known merchants (high priority) -----
   {
+    id: 'ifood',
     name: 'iFood',
-    aliases: ['IFOOD', 'IFOOD COM BR', 'IFOOD*'],
-    classId: 'despesas_adicionais',
-    categoryId: 'cat-adicionais-lazer',
-    itemId: 'item-restaurantes-bares',
+    aliases: ['IFOOD', 'IFOOD BR'],
+    ...RESTAURANTE_DESTINATION,
     priority: 900,
     confidence: 98,
     active: true,
     kind: 'merchant',
   },
   {
+    id: 'uber',
     name: 'Uber',
-    aliases: ['UBER', 'UBER TRIP', 'UBER*TRIP'],
-    classId: 'despesas_adicionais',
-    categoryId: 'cat-adicionais-outros',
-    itemId: 'item-uber',
+    aliases: ['UBER', 'UBER BR', 'UBER TRIP'],
+    ...UBER_DESTINATION,
     priority: 900,
     confidence: 98,
     active: true,
     kind: 'merchant',
   },
   {
+    id: 'netflix',
     name: 'Netflix',
-    aliases: ['NETFLIX', 'NETFLIX COM BR'],
+    aliases: ['NETFLIX', 'NETFLIX.COM'],
     ...SUBSCRIPTION_DESTINATION,
-    itemId: 'item-assinaturas-streamings',
     priority: 900,
     confidence: 98,
     active: true,
     kind: 'subscription',
   },
   {
+    id: 'spotify',
     name: 'Spotify',
-    aliases: ['SPOTIFY', 'SPOTIFY BR', 'SPOTIFY PREMIUM'],
+    aliases: ['SPOTIFY', 'SPOTIFY BR'],
     ...SUBSCRIPTION_DESTINATION,
-    itemId: 'item-assinaturas-streamings',
     priority: 900,
     confidence: 98,
     active: true,
     kind: 'subscription',
   },
   {
-    name: 'Burger King',
-    aliases: ['BURGER KING', 'BURGERKING', 'BK BR'],
-    classId: 'despesas_adicionais',
-    categoryId: 'cat-adicionais-lazer',
-    itemId: 'item-restaurantes-bares',
+    id: 'disney',
+    name: 'Disney+',
+    aliases: ['DISNEY+', 'DISNEY PLUS', 'DISNEY'],
+    ...SUBSCRIPTION_DESTINATION,
     priority: 900,
-    confidence: 90,
+    confidence: 98,
     active: true,
-    kind: 'merchant',
+    kind: 'subscription',
   },
   {
-    name: 'Posto Ipiranga',
-    aliases: ['POSTO IPIRANGA', 'IPIRANGA', 'AUTO POSTO IPIRANGA'],
-    classId: 'despesas_variaveis',
-    categoryId: 'cat-variaveis-transporte',
-    itemId: 'item-combustivel',
+    id: 'hbo',
+    name: 'HBO Max',
+    aliases: ['HBO MAX', 'HBOMAX', 'MAX'],
+    ...SUBSCRIPTION_DESTINATION,
     priority: 900,
-    confidence: 90,
+    confidence: 98,
     active: true,
-    kind: 'merchant',
+    kind: 'subscription',
   },
 
   // ----- Payment intermediators (§2.11) — never classify on their own -----
   {
+    id: 'mercado-pago',
     name: 'Mercado Pago',
-    aliases: ['MERCADO PAGO', 'MERCADOPAGO', 'MP ', 'MP*', 'MP'],
+    aliases: ['MERCADO PAGO', 'MERCADOPAGO', 'MP', 'MP*'],
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
     itemId: 'item-nao-lembro',
@@ -340,8 +390,9 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'paypal',
     name: 'PayPal',
-    aliases: ['PAYPAL', 'PAYPAL *', 'PAYPAL*'],
+    aliases: ['PAYPAL', 'PAYPAL*'],
     classId: 'despesas_adicionais',
     categoryId: 'cat-adicionais-outros',
     itemId: 'item-nao-lembro',
@@ -351,6 +402,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'pagbank',
     name: 'PagBank',
     aliases: ['PAGBANK', 'PAGBANK*'],
     classId: 'despesas_adicionais',
@@ -362,6 +414,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'picpay',
     name: 'PicPay',
     aliases: ['PICPAY', 'PICPAY*'],
     classId: 'despesas_adicionais',
@@ -373,6 +426,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'nubank',
     name: 'Nubank',
     aliases: ['NUBANK', 'NU PAGOS', 'NU*'],
     classId: 'despesas_adicionais',
@@ -384,6 +438,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'stone',
     name: 'Stone',
     aliases: ['STONE', 'STONE*'],
     classId: 'despesas_adicionais',
@@ -395,6 +450,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'sumup',
     name: 'SumUp',
     aliases: ['SUMUP', 'SUMUP*'],
     classId: 'despesas_adicionais',
@@ -406,6 +462,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'infinitepay',
     name: 'InfinitePay',
     aliases: ['INFINITEPAY', 'INFINITEPAY*'],
     classId: 'despesas_adicionais',
@@ -417,6 +474,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'stripe',
     name: 'Stripe',
     aliases: ['STRIPE', 'STRIPE*'],
     classId: 'despesas_adicionais',
@@ -428,17 +486,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
-    name: 'iFood Pago',
-    aliases: ['IFOOD PAGO', 'IFOODPAGO'],
-    classId: 'despesas_adicionais',
-    categoryId: 'cat-adicionais-outros',
-    itemId: 'item-nao-lembro',
-    priority: 10,
-    confidence: 0,
-    active: true,
-    kind: 'intermediator',
-  },
-  {
+    id: 'google-pay',
     name: 'Google Pay',
     aliases: ['GOOGLE PAY', 'GOOGLEPAY'],
     classId: 'despesas_adicionais',
@@ -450,6 +498,7 @@ export const MERCHANTS: Merchant[] = [
     kind: 'intermediator',
   },
   {
+    id: 'apple-pay',
     name: 'Apple Pay',
     aliases: ['APPLE PAY', 'APPLEPAY'],
     classId: 'despesas_adicionais',
@@ -479,6 +528,8 @@ export const BANK_NOISE_TOKENS: string[] = [
   'PGTO',
   'PAGTO',
   'PAG',
+  'PAGAMENTO',
+  'PAGAMENTOS',
   'AUT',
   'AUTORIZACAO',
   'AUTH',
