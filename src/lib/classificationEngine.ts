@@ -1,17 +1,23 @@
 /**
- * Classification engine v2.
+ * Classification engine v3 — token-based classification (Part 2 of the prompt).
  *
- * Evolves the legacy learningEngine (which only knew about flat Category ids)
- * to work with the new 3-tier hierarchy: it suggests a leaf FinancialItem id.
+ * CRITICAL CHANGE vs. v2: matching is TOKEN-based, NEVER substring.
+ *  (§2.1) "OVOS" cannot match "NOVOS" — see src/lib/tokenizer.ts.
+ *  (§2.2) Single-token rules use `tokenEquals`; multi-token phrases use
+ *         `phraseMatches` (contiguous sub-sequence of tokens).
+ *  (§2.3) Multi-word expressions ("AMAZON PRIME", "MERCADO LIVRE") are matched
+ *         as complete phrases and win over shorter/generic matches (§2.5).
  *
  * Scoring layers (highest priority wins):
- *  1. Named ClassificationRules (priority order, active only)
- *  2. Learned exact-match rules (legacy LearnedMapping, normalized)
- *  3. Item keywords + aliases (scoring, best match wins)
- *  4. Legacy category keyword map (fallback, mapped to an item id)
+ *  0. Credit-card payment descriptions → synthetic invoice item (unchanged)
+ *  1. Named ClassificationRules (priority order, active only) — token-based
+ *  2. Learned exact-match rules (legacy LearnedMapping, normalized full match)
+ *  3. Known merchants (src/lib/merchants.ts) — phrases + aliases
+ *  4. Item keywords + aliases — token/phrase scoring
+ *  5. Legacy category keyword map (fallback, mapped to an item id)
  *
- * Also exposes a `classifyTransaction` helper returning an explanation string
- * ("Regra: contém 'UBER'") for the UI tooltip.
+ * Each suggestion carries a numeric confidence (§2.12) so the caller can send
+ * low-confidence suggestions to review (§2.13) instead of auto-applying them.
  */
 import { ClassificationRule, FinancialItem, Transaction, LearnedMapping } from '../types/finance'
 import {
@@ -21,64 +27,101 @@ import {
   suggestCategoryByKeywords,
   isCreditCardPaymentDescription,
 } from './learningEngine'
+import { MERCHANTS, Merchant, DEFAULT_REVIEW_THRESHOLD, ConfidenceLevel } from './merchants'
+import {
+  tokenize,
+  tokenEquals,
+  tokenSet,
+  phraseMatches,
+  phraseTokens,
+  normalizeRaw,
+} from './tokenizer'
 
 export interface ClassifyResult {
   itemId: string | null
-  /** confidence level for the suggestion */
-  confidence: 'rule' | 'exact' | 'keyword' | 'none'
+  /** confidence level for the suggestion (§2.12) */
+  confidence: 'rule' | 'exact' | 'merchant' | 'keyword' | 'none'
+  /** numeric confidence 0..100 (§2.12); callers compare against the review threshold */
+  confidenceScore: number
   /** human-readable reason (pt-BR), shown in tooltips */
   reason: string | null
+  /** true when the suggestion is below the review threshold → should be sent to review */
+  needsReview: boolean
 }
 
 /**
  * Evaluate a single classification rule against a transaction.
- * Returns true if the rule matches.
+ *
+ * Token-based matching (§2.1, §2.2): "contains" no longer uses substring — it
+ * uses token equality (single word) or phrase containment (multi word). This
+ * is what makes `token = OVOS` NOT match "MERCADO LIVRE NOVOS".
+ *
+ * The `contains` operator is preserved by name for backward compatibility with
+ * rules stored in localStorage, but its semantics are now token-based.
  */
 export function evaluateRule(rule: ClassificationRule, tx: Transaction): boolean {
   if (rule.status !== 'active') return false
   const { field, operator, value } = rule.condition
-  let actual = ''
-  switch (field) {
-    case 'description':
-      actual = normalizeDescription(tx.description)
-      break
-    case 'amount':
-      actual = String(tx.amount)
-      break
-    case 'type':
-      actual = tx.type
-      break
-    case 'source':
-      actual = tx.source ?? ''
-      break
-  }
-  const expected =
-    operator.startsWith('gt') || operator.startsWith('lt') ? value : normalizeDescription(value)
 
-  switch (operator) {
-    case 'contains':
-      return actual.includes(expected)
-    case 'equals':
-      return actual === expected
-    case 'startsWith':
-      return actual.startsWith(expected)
-    case 'endsWith':
-      return actual.endsWith(expected)
-    case 'regex':
-      try {
-        const re = new RegExp(value, 'i')
-        return re.test(tx.description) || re.test(actual)
-      } catch {
-        return false
+  switch (field) {
+    case 'description': {
+      // 'contains' → token equality (single word) or phrase containment
+      if (operator === 'contains') {
+        const v = normalizeRaw(value)
+        if (!v) return false
+        // multi-word phrase → contiguous token sub-sequence
+        if (v.includes(' ')) return phraseMatches(tx.description, value)
+        // single word → token equality (NOT substring)
+        return tokenEquals(tx.description, value)
       }
-    case 'gt':
-      return Number(actual) > Number(value)
-    case 'lt':
-      return Number(actual) < Number(value)
-    case 'gte':
-      return Number(actual) >= Number(value)
-    case 'lte':
-      return Number(actual) <= Number(value)
+      if (operator === 'equals') {
+        return normalizeRaw(tx.description) === normalizeRaw(value)
+      }
+      if (operator === 'startsWith') {
+        const descTokens = tokenize(tx.description)
+        const vTokens = phraseTokens(value)
+        if (vTokens.length === 0 || vTokens.length > descTokens.length) return false
+        return vTokens.every((t, i) => t === descTokens[i])
+      }
+      if (operator === 'endsWith') {
+        const descTokens = tokenize(tx.description)
+        const vTokens = phraseTokens(value)
+        if (vTokens.length === 0 || vTokens.length > descTokens.length) return false
+        return vTokens.every((t, i) => t === descTokens[descTokens.length - vTokens.length + i])
+      }
+      if (operator === 'regex') {
+        try {
+          const re = new RegExp(value, 'i')
+          return re.test(tx.description)
+        } catch {
+          return false
+        }
+      }
+      return false
+    }
+    case 'amount': {
+      const a = tx.amount
+      const v = Number(value)
+      if (isNaN(v)) return false
+      switch (operator) {
+        case 'gt':
+          return a > v
+        case 'lt':
+          return a < v
+        case 'gte':
+          return a >= v
+        case 'lte':
+          return a <= v
+        case 'equals':
+          return a === v
+        default:
+          return false
+      }
+    }
+    case 'type':
+      return normalizeRaw(tx.type) === normalizeRaw(value)
+    case 'source':
+      return normalizeRaw(tx.source ?? '') === normalizeRaw(value)
     default:
       return false
   }
@@ -93,47 +136,166 @@ export function sortRulesByPriority(rules: ClassificationRule[]): Classification
 }
 
 /**
- * Score how well an item matches a normalized description, using the item's
- * keywords + aliases + name. Mirrors the legacy keyword scoring approach.
+ * Test a rule against an arbitrary description string (§2.16).
+ * Returns whether the rule matches, plus a short human reason.
+ *
+ * Used by the Regras page's "testar regra" feature before saving.
+ */
+export function testRuleAgainstDescription(
+  rule: Pick<ClassificationRule, 'condition' | 'status'>,
+  description: string,
+): { matches: boolean; reason: string } {
+  if (rule.status !== 'active') return { matches: false, reason: 'Regra inativa' }
+  const fakeTx = {
+    description,
+    amount: 0,
+    type: 'expense',
+    source: '',
+  } as unknown as Transaction
+  const matches = evaluateRule(rule as ClassificationRule, fakeTx)
+  return {
+    matches,
+    reason: matches ? `Corresponde (operador ${rule.condition.operator})` : 'Não corresponde',
+  }
+}
+
+/**
+ * Token-based scoring of an item against a description (§2.2).
+ * Single-token keywords use `tokenEquals`; multi-token phrases use
+ * `phraseMatches`. Longer phrases win (§2.5) via specificity weighting.
  */
 function scoreItem(
-  normDesc: string,
+  description: string,
   item: FinancialItem,
-): { score: number; matchedTerm: string | null } {
-  if (!normDesc) return { score: 0, matchedTerm: null }
-
+): { score: number; matchedTerm: string | null; confidence: number } {
+  if (!description) return { score: 0, matchedTerm: null, confidence: 0 }
   const terms: string[] = []
-  for (const kw of item.keywords) terms.push(normalizeDescription(kw))
-  for (const al of item.aliases) terms.push(normalizeDescription(al))
-  terms.push(normalizeDescription(item.name))
+  for (const kw of item.keywords) terms.push(kw)
+  for (const al of item.aliases) terms.push(al)
+  terms.push(item.name)
 
-  let best = { score: 0, matchedTerm: null as string | null }
+  let best = { score: 0, matchedTerm: null as string | null, confidence: 0 }
 
   for (const term of terms) {
     if (!term) continue
+    const pTokens = phraseTokens(term)
+    if (pTokens.length === 0) continue
+    let matched = false
     let score = 0
-    if (normDesc === term) score = 100 + term.length
-    else if (normDesc.includes(term)) score = 50 + term.length
-    else {
-      // word-level prefix matching
-      const words = normDesc.split(' ')
-      for (const w of words) {
-        if (w === term) score = Math.max(score, 40 + term.length)
-        else if (term.length >= 4 && w.length > term.length && w.startsWith(term)) {
-          score = Math.max(score, 20 + term.length)
-        } else if (w.length >= 4 && term.length > w.length && term.startsWith(w)) {
-          score = Math.max(score, 15 + w.length)
-        }
-      }
+    if (pTokens.length === 1) {
+      // single token → token equality (NOT substring)
+      matched = tokenEquals(description, term)
+      score = matched ? 40 + pTokens[0].length : 0
+    } else {
+      // multi-word phrase → contiguous token sub-sequence
+      matched = phraseMatches(description, term)
+      score = matched ? 60 + pTokens.join('').length : 0
     }
-    if (score > best.score) best = { score, matchedTerm: term }
+    if (score > best.score) {
+      best = { score, matchedTerm: term, confidence: matched ? 75 : 0 }
+    }
   }
   return best
 }
 
 /**
+ * Match the transaction description against the merchant registry (§2.4, §2.5).
+ *
+ * Priority order (§2.4 hierarchy):
+ *   1. Known merchant (phrase)            — confidence 98
+ *   2. Merchant alias (phrase)            — confidence 98
+ *   3. Composite specific rule            — handled by ClassificationRules
+ *   4. Generic keywords (single token)    — confidence 50
+ *
+ * Specificity (§2.5): longer phrases win. So "AMAZON PRIME" (subscription)
+ * beats "AMAZON" (marketplace). Intermediators are detected first and stripped
+ * before the merchant name is evaluated (§2.11).
+ *
+ * Returns the winning merchant (if any) and the remaining description after
+ * stripping the leading intermediator prefix.
+ */
+export function matchMerchant(description: string): {
+  merchant: Merchant | null
+  reason: string | null
+} {
+  if (!description) return { merchant: null, reason: null }
+
+  // --- Detect + strip a leading payment intermediator (§2.11) ---
+  let cleanedDesc = description
+  const intermediator = MERCHANTS.find(
+    (m) =>
+      m.active &&
+      m.kind === 'intermediator' &&
+      m.aliases.some((a) => {
+        // only match the intermediator as a leading token / prefix token
+        const aNorm = normalizeRaw(a)
+        if (!aNorm) return false
+        const tokens = tokenize(description)
+        // match first token equality OR a leading token-prefix like "MP*LOJA"
+        if (!aNorm.includes(' ')) {
+          return tokens.length > 0 && (tokens[0] === aNorm || tokens[0].startsWith(aNorm))
+        }
+        return phraseMatches(description, a)
+      }),
+  )
+  if (intermediator) {
+    // strip the intermediator's first token and re-tokenize via normalize
+    const firstAlias =
+      intermediator.aliases.map(normalizeRaw).find((a) => a && !a.includes(' ')) || ''
+    if (firstAlias) {
+      const tokens = tokenize(description)
+      cleanedDesc = tokens.filter((t) => !(t === firstAlias || t.startsWith(firstAlias))).join(' ')
+    }
+  }
+
+  // --- Match non-intermediator merchants by phrase specificity ---
+  const candidates: { merchant: Merchant; alias: string; specificity: number }[] = []
+  for (const m of MERCHANTS) {
+    if (!m.active || m.kind === 'intermediator') continue
+    for (const alias of m.aliases) {
+      const aNorm = normalizeRaw(alias)
+      if (!aNorm) continue
+      const haystack = aNorm.includes(' ') ? cleanedDesc : description
+      if (phraseMatches(haystack, alias)) {
+        candidates.push({ merchant: m, alias, specificity: phraseTokens(alias).length })
+      }
+    }
+  }
+  if (candidates.length === 0) {
+    // fall back to single-token merchant matches (generic, confidence 50)
+    const tokens = tokenSet(description)
+    for (const m of MERCHANTS) {
+      if (!m.active || m.kind !== 'generic') continue
+      for (const alias of m.aliases) {
+        const aNorm = normalizeRaw(alias)
+        if (!aNorm || aNorm.includes(' ')) continue
+        if (tokens.has(aNorm)) {
+          return { merchant: m, reason: `Estabelecimento genérico: token '${aNorm}'` }
+        }
+      }
+    }
+    return { merchant: null, reason: null }
+  }
+
+  // Specificity wins: longest phrase, then highest priority (§2.5, §2.4)
+  candidates.sort((a, b) => {
+    if (b.specificity !== a.specificity) return b.specificity - a.specificity
+    return b.merchant.priority - a.merchant.priority
+  })
+  const winner = candidates[0]
+  return {
+    merchant: winner.merchant,
+    reason: `Estabelecimento: ${winner.merchant.name} (expressão '${normalizeRaw(winner.alias)}')`,
+  }
+}
+
+/**
  * Main classification entrypoint. Returns the suggested itemId (or null),
- * a confidence level, and a pt-BR explanation.
+ * a confidence level, a numeric confidence score, and a pt-BR explanation.
+ *
+ * Callers should compare `confidenceScore` against `DEFAULT_REVIEW_THRESHOLD`
+ * (or their own threshold) and route low-confidence suggestions to review
+ * (§2.12, §2.13) instead of auto-applying them.
  */
 export function classifyTransaction(
   tx: Transaction,
@@ -141,13 +303,13 @@ export function classifyTransaction(
   rules: ClassificationRule[],
   learnedRules: LearnedMapping[] | Map<string, LearnedMapping>,
   legacyCategories?: { id: string; name: string }[],
+  reviewThreshold: number = DEFAULT_REVIEW_THRESHOLD,
 ): ClassifyResult {
-  const norm = normalizeDescription(tx.description)
-  if (!norm) return { itemId: null, confidence: 'none', reason: null }
+  if (!tx.description) {
+    return { itemId: null, confidence: 'none', confidenceScore: 0, reason: null, needsReview: true }
+  }
 
-  // Credit-card payment descriptions get routed to a synthetic "invoice payment"
-  // item if one exists, otherwise left unclassified (the type can also be
-  // explicitly set to credit_card_payment in the form).
+  // 0. Credit-card payment descriptions → synthetic invoice item (unchanged)
   if (isCreditCardPaymentDescription(tx.description)) {
     const ccItem = items.find(
       (i) =>
@@ -159,12 +321,14 @@ export function classifyTransaction(
       return {
         itemId: ccItem.id,
         confidence: 'keyword',
+        confidenceScore: 90,
         reason: 'Descrição corresponde a pagamento de fatura/cartão',
+        needsReview: false,
       }
     }
   }
 
-  // 1. Named rules (priority order)
+  // 1. Named rules (priority order) — token-based (§2.2)
   const sortedRules = sortRulesByPriority(rules)
   for (const rule of sortedRules) {
     if (evaluateRule(rule, tx)) {
@@ -173,50 +337,72 @@ export function classifyTransaction(
         return {
           itemId: item.id,
           confidence: 'rule',
+          confidenceScore: 100,
           reason: `Regra "${rule.name}": ${rule.condition.operator} '${rule.condition.value}'`,
+          needsReview: false,
         }
       }
     }
   }
 
-  // 2. Learned exact-match rules (legacy) — map category id → item
+  // 2. Learned exact-match rules (legacy) — full normalized description match
   const exact = classifyByExactMatch(tx.description, learnedRules)
   if (exact.matched && exact.categoryId) {
-    // Try to find an item whose id or aliases line up with the legacy category.
-    // The migration already mapped legacy category ids → item ids, so look up
-    // by a synthetic id `cat-...` -> item via the catalog's mapLegacyCategoryIdToItem.
     const byLegacyId = legacyCategoryToItem(exact.categoryId, items)
     if (byLegacyId) {
       return {
         itemId: byLegacyId.id,
         confidence: 'exact',
-        reason: `Correspondência exata aprendida (categoria legada)`,
+        confidenceScore: 100,
+        reason: `Correspondência exata aprendida`,
+        needsReview: false,
       }
     }
   }
 
-  // 3. Item keyword + alias scoring
-  let bestItem: { item: FinancialItem; score: number; term: string | null } | null = null
+  // 3. Known merchants (§2.4 hierarchy)
+  const { merchant, reason } = matchMerchant(tx.description)
+  if (merchant) {
+    // find the item matching the merchant's itemId (must exist in the catalog)
+    const item = items.find((i) => i.id === merchant.itemId)
+    if (item) {
+      return {
+        itemId: item.id,
+        confidence: 'merchant',
+        confidenceScore: merchant.confidence,
+        reason,
+        needsReview: merchant.confidence < reviewThreshold,
+      }
+    }
+  }
+
+  // 4. Item keyword + alias scoring (token-based, §2.2)
+  let bestItem: {
+    item: FinancialItem
+    score: number
+    term: string | null
+    confidence: number
+  } | null = null
   for (const item of items) {
     if (!item.active) continue
-    const { score, matchedTerm } = scoreItem(norm, item)
-    if (bestItem && score > bestItem.score) {
-      bestItem = { item, score, term: matchedTerm }
-    } else if (!bestItem && score > 0) {
-      bestItem = { item, score, term: matchedTerm }
+    const { score, matchedTerm, confidence } = scoreItem(tx.description, item)
+    if (!bestItem || score > bestItem.score) {
+      if (score > 0) bestItem = { item, score, term: matchedTerm, confidence }
     }
   }
   if (bestItem && bestItem.score > 0) {
     return {
       itemId: bestItem.item.id,
       confidence: 'keyword',
+      confidenceScore: bestItem.confidence,
       reason: bestItem.term
-        ? `Palavra-chave: contém '${bestItem.term}'`
+        ? `Palavra-chave: token '${normalizeRaw(bestItem.term)}'`
         : `Item: ${bestItem.item.name}`,
+      needsReview: bestItem.confidence < reviewThreshold,
     }
   }
 
-  // 4. Legacy category keyword map fallback
+  // 5. Legacy category keyword map fallback (now token-based — see learningEngine)
   if (legacyCategories && legacyCategories.length) {
     const legacyCatId = suggestCategoryByKeywords(tx.description, legacyCategories as any)
     if (legacyCatId) {
@@ -225,21 +411,38 @@ export function classifyTransaction(
         return {
           itemId: item.id,
           confidence: 'keyword',
-          reason: `Categoria sugerida por palavra-chave`,
+          confidenceScore: 50,
+          reason: `Categoria sugerida por palavra-chave (token)`,
+          needsReview: true, // generic fallback → always review
         }
       }
     }
   }
 
-  return { itemId: null, confidence: 'none', reason: null }
+  // No confident match → pending review (§2.13)
+  const tokens = tokenize(tx.description)
+  if (tokens.length === 0) {
+    return {
+      itemId: null,
+      confidence: 'none',
+      confidenceScore: 0,
+      reason: 'Descrição sem tokens relevantes',
+      needsReview: true,
+    }
+  }
+  return {
+    itemId: null,
+    confidence: 'none',
+    confidenceScore: 0,
+    reason: 'Sem correspondência confiável — pendente de classificação',
+    needsReview: true,
+  }
 }
 
 /** Map a legacy category id (or name) to an item in the catalog. */
 function legacyCategoryToItem(legacyId: string, items: FinancialItem[]): FinancialItem | null {
-  // direct id match against items (some legacy ids were reused as item ids)
   const direct = items.find((i) => i.id === legacyId)
   if (direct) return direct
-  // synthetic mapping for default categories
   const map: Record<string, string> = {
     'cat-alimentacao': 'item-supermercado',
     'cat-transporte': 'item-combustivel',
@@ -262,7 +465,11 @@ function legacyCategoryToItem(legacyId: string, items: FinancialItem[]): Financi
 
 /**
  * Create a new ClassificationRule from a confirmed transaction + chosen item.
- * Used by the "create rule from transaction" UI action.
+ * Used by the "create rule from transaction" UI action (§2.14).
+ *
+ * The rule uses a token-equality operator so that a rule for "OVOS" never
+ * matches "NOVOS" (§2.2). For multi-word descriptions, the full normalized
+ * description is used as a phrase.
  */
 export function buildRuleFromTransaction(
   tx: Transaction,
@@ -270,11 +477,14 @@ export function buildRuleFromTransaction(
   name?: string,
 ): ClassificationRule {
   const now = new Date().toISOString()
-  // default: contains the (normalized) description
-  const term = normalizeDescription(tx.description).split(' ')[0] || tx.description
+  const norm = normalizeDescription(tx.description)
+  const tokens = norm.split(' ').filter(Boolean)
+  // use the full normalized description as a phrase when multi-word, else the
+  // single token (token-equality semantics under 'contains')
+  const term = tokens.length > 1 ? norm : tokens[0] || tx.description
   return {
     id: `rule-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-    name: name || `Contém '${term}'`,
+    name: name || `Token '${term}'`,
     priority: 100,
     condition: {
       field: 'description',

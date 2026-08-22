@@ -16,6 +16,7 @@ import Hierarchy from './pages/Hierarchy'
 import Settings from './pages/Settings'
 import Welcome from './pages/Welcome'
 import NotFound from './pages/NotFound'
+import Regras from './pages/Regras'
 
 // Onboarding gate guard wrapper
 function AppRoutes() {
@@ -39,6 +40,7 @@ function AppRoutes() {
         <Route path="/categorias" element={<Categories />} />
         <Route path="/hierarquia" element={<Hierarchy />} />
         <Route path="/configuracoes" element={<Settings />} />
+        <Route path="/regras" element={<Regras />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Layers,
   CalendarClock,
+  ListChecks,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -30,6 +31,7 @@ const navItems = [
   { to: '/orcamento', label: 'Orçamento', icon: Target },
   { to: '/categorias', label: 'Categorias', icon: Tag },
   { to: '/hierarquia', label: 'Hierarquia', icon: Layers },
+  { to: '/regras', label: 'Regras', icon: ListChecks },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
 

@@ -431,8 +431,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const item = financialItems.find((i) => i.id === itemId)
           if (item?.categoryId) categoryId = item.categoryId
           classificationReason = result.reason
-          if (result.confidence === 'keyword') {
-            // keyword matches need confirmation
+          // Auto-apply only high-confidence suggestions (rules, exact, or
+          // merchants/keywords above the review threshold). Everything else
+          // (low-confidence keyword/merchant, generic fallback) goes to review.
+          const autoApply =
+            result.confidence === 'rule' ||
+            result.confidence === 'exact' ||
+            (result.confidenceScore ?? 0) >= 75
+          if (!autoApply) {
             needsReview = true
             suggestedItemId = itemId
             suggestedCategoryId = item?.categoryId ?? null
@@ -764,8 +770,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (v2Result.itemId) {
           finalItemId = v2Result.itemId
           classificationReason = v2Result.reason
-          // If v2 gave a confident answer and the legacy path was unsure, adopt it
-          if (needsReview && (v2Result.confidence === 'rule' || v2Result.confidence === 'exact')) {
+          // Auto-apply only high-confidence suggestions (rules, exact, or
+          // merchants/keywords above the review threshold). Low-confidence
+          // suggestions stay as suggestions pending manual review (§2.12).
+          const autoApply =
+            v2Result.confidence === 'rule' ||
+            v2Result.confidence === 'exact' ||
+            (v2Result.confidenceScore ?? 0) >= 75
+          if (needsReview && autoApply) {
             needsReview = false
             const targetItem = financialItems.find((i) => i.id === finalItemId)
             if (targetItem?.categoryId) finalCategoryId = targetItem.categoryId

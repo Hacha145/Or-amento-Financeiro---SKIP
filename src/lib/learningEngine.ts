@@ -1,4 +1,5 @@
 import { Category, LearnedMapping } from '../types/finance'
+import { tokenEquals, phraseMatches, normalizeRaw } from './tokenizer'
 
 /**
  * Intelligent normalization for transaction descriptions:
@@ -432,93 +433,61 @@ export function suggestCategoryByKeywords(
     ],
   }
 
-  const descWords = norm.split(' ').filter((w) => w.length > 0)
-  const MIN_PREFIX_LEN = 4
+  // --- Token-based matching (Part 2 of the prompt) ---
+  // CRITICAL: "OVOS" must match the token "OVOS", NOT the substring "OVOS"
+  // inside "NOVOS". Single-word keywords use token equality; multi-word
+  // keywords use contiguous token sub-sequence matching. Substring matching is
+  // gone. (§2.1, §2.2, §2.5)
 
-  // Helper to match a keyword candidate against description and its words
-  // Returns match score: 3 = exact/substring match, 2 = whole-word prefix/start match, 1 = token prefix match, 0 = no match
-  const getKeywordMatchScore = (normKw: string): number => {
-    if (!normKw) return 0
+  const getKeywordMatchScore = (kw: string): number => {
+    if (!kw) return 0
+    const kNorm = normalizeRaw(kw)
+    if (!kNorm) return 0
 
-    // 1. Exact string match or direct phrase containment
-    if (norm === normKw) {
-      return 100 + normKw.length
+    // Exact full-description match
+    if (normalizeRaw(description) === kNorm) {
+      return 100 + kNorm.length
     }
-    if (norm.includes(normKw)) {
-      // Direct whole keyword substring match
-      return 50 + normKw.length
-    }
 
-    const kwWords = normKw.split(' ').filter((w) => w.length > 0)
+    const kTokens = kNorm.split(' ').filter(Boolean)
+    if (kTokens.length === 0) return 0
 
-    // 2. Check if any word in description matches or starts with keyword (or vice versa)
-    for (const dWord of descWords) {
-      // If single-word keyword or comparing tokens
-      for (const kWord of kwWords) {
-        if (dWord === kWord) {
-          return 40 + kWord.length
-        }
-        // If keyword has at least 4 chars and description word starts with it (e.g. kw "supermercado" or "medic" -> "medicamentos")
-        if (
-          kWord.length >= MIN_PREFIX_LEN &&
-          dWord.length > kWord.length &&
-          dWord.startsWith(kWord)
-        ) {
-          return 20 + kWord.length
-        }
-        // If description word is a prefix of keyword (e.g. dWord "drogas" -> kw "drogasil" or "supermerc" -> "supermercado")
-        if (
-          dWord.length >= MIN_PREFIX_LEN &&
-          kWord.length > dWord.length &&
-          kWord.startsWith(dWord)
-        ) {
-          return 15 + dWord.length
-        }
+    // Multi-word phrase → contiguous token sub-sequence (§2.3)
+    if (kTokens.length > 1) {
+      if (phraseMatches(description, kw)) {
+        return 60 + kNorm.length
       }
-
-      // Check whole normalized keyword against dWord
-      if (kwWords.length === 1) {
-        if (
-          normKw.length >= MIN_PREFIX_LEN &&
-          dWord.length > normKw.length &&
-          dWord.startsWith(normKw)
-        ) {
-          return 20 + normKw.length
-        }
-        if (
-          dWord.length >= MIN_PREFIX_LEN &&
-          normKw.length > dWord.length &&
-          normKw.startsWith(dWord)
-        ) {
-          return 15 + dWord.length
-        }
-      }
+      return 0
     }
 
+    // Single-token → token equality (§2.2). NEVER substring.
+    if (tokenEquals(description, kw)) {
+      return 40 + kNorm.length
+    }
+
+    // No match. We intentionally do NOT fall back to substring here.
     return 0
   }
 
   let bestCatId: string | null = null
   let highestScore = 0
 
-  // Check all known categories and keywords to find best scoring match
   for (const cat of categories) {
     const catId = cat.id
     const keywords = keywordMap[catId] || []
 
     for (const kw of keywords) {
-      const normKw = normalizeDescription(kw)
-      const score = getKeywordMatchScore(normKw)
+      const score = getKeywordMatchScore(kw)
       if (score > highestScore) {
         highestScore = score
         bestCatId = cat.id
       }
     }
 
-    // Also check category name itself as keyword
-    const catNameNorm = normalizeDescription(cat.name)
+    // Category name itself as a keyword (token-based)
+    const catNameNorm = normalizeRaw(cat.name)
     if (catNameNorm.length >= 3) {
-      const score = getKeywordMatchScore(catNameNorm)
+      const score = getKeywordMatchScore(cat.name)
       if (score > highestScore) {
         highestScore = score
         bestCatId = cat.id

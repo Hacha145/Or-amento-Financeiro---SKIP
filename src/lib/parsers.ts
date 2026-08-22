@@ -10,6 +10,27 @@ export interface ParsedTable {
 }
 
 /**
+ * Result of parsing an XLSX file into per-sheet 2D cell matrices. Part 1 of
+ * the prompt: leitura correta da planilha histórica.
+ *
+ * The matrices are 1-based by index+1 (index 0 unused) so row/column numbers
+ * match the values stored in src/lib/templateMap.ts.
+ *
+ * Each cell carries either a scalar value or a formula string (prefixed '=').
+ * `formulaCells` is the same shape but contains the raw formula for cells that
+ * had one, so the importer can decompose them (§3.2).
+ */
+export interface XLSXSheet {
+  sheetName: string
+  matrix: (string | number | null)[][] // [row][col], 1-based (index 0 unused)
+  formulas: (string | null)[][] // parallel matrix; formula string or null
+}
+
+export interface ParsedXLSX {
+  sheets: XLSXSheet[]
+}
+
+/**
  * Parses simple CSV content supporting quotes, semicolons and commas
  */
 export function parseCSV(content: string): ParsedTable {
@@ -474,4 +495,78 @@ export function exportTransactionsToCSV(
   })
 
   return [headers.map((h) => `"${h}"`).join(';'), ...rows].join('\r\n')
+}
+
+// ---------------------------------------------------------------------------
+// XLSX parsing (Part 1 — leitura correta da planilha histórica)
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse an XLSX ArrayBuffer into per-sheet 2D matrices + parallel formula
+ * matrices. Browser-compatible — uses ExcelJS (already a project dependency).
+ *
+ * Returns matrices 1-based by index+1 (index 0 unused) so row/column numbers
+ * line up with src/lib/templateMap.ts.
+ */
+export async function parseXLSX(data: ArrayBuffer): Promise<ParsedXLSX> {
+  // dynamic import keeps the bundle lean if xlsx parsing isn't used
+  const ExcelJS = (await import('exceljs')).default
+  const wb = new ExcelJS.Workbook()
+  await wb.xlsx.load(data, { options: { ignoreThemes: true } })
+
+  const sheets: XLSXSheet[] = []
+  wb.eachSheet((sheet) => {
+    const maxR = sheet.rowCount || 0
+    const maxC = sheet.columnCount || 0
+    // allocate 1-based matrices (index 0 unused)
+    const matrix: (string | number | null)[][] = []
+    const formulas: (string | null)[][] = []
+    for (let r = 0; r <= maxR; r++) {
+      matrix.push(new Array(maxC + 1).fill(null))
+      formulas.push(new Array(maxC + 1).fill(null))
+    }
+    // ExcelJS rows are 1-based
+    sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+      if (rowNumber > maxR) return
+      if (!matrix[rowNumber]) {
+        matrix[rowNumber] = new Array(maxC + 1).fill(null)
+        formulas[rowNumber] = new Array(maxC + 1).fill(null)
+      }
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        if (colNumber > maxC) return
+        // A formula cell carries its formula text under `cell.formula` (without
+        // leading '=') and the cached result under `cell.result`.
+        const formula = (cell as { formula?: string }).formula
+        if (formula) {
+          formulas[rowNumber][colNumber] = `=${formula}`
+          const v = (cell as { result?: unknown }).result
+          matrix[rowNumber][colNumber] = v == null ? null : typeof v === 'number' ? v : String(v)
+          return
+        }
+        const v = cell.value
+        if (v == null) {
+          matrix[rowNumber][colNumber] = null
+        } else if (typeof v === 'number') {
+          matrix[rowNumber][colNumber] = v
+        } else if (typeof v === 'string') {
+          matrix[rowNumber][colNumber] = v
+        } else if (v && typeof v === 'object') {
+          // RichText or hyperlink — extract text
+          if ('richText' in v && Array.isArray((v as { richText: { text: string }[] }).richText)) {
+            matrix[rowNumber][colNumber] = (v as { richText: { text: string }[] }).richText
+              .map((rt) => rt.text)
+              .join('')
+          } else if ('text' in v) {
+            matrix[rowNumber][colNumber] = String((v as { text: string }).text)
+          } else {
+            matrix[rowNumber][colNumber] = String(v)
+          }
+        } else {
+          matrix[rowNumber][colNumber] = String(v)
+        }
+      })
+    })
+    sheets.push({ sheetName: sheet.name, matrix, formulas })
+  })
+  return { sheets }
 }

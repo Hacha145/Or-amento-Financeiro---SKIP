@@ -51,8 +51,10 @@ import {
   isCreditCardPaymentDescription,
 } from '@/lib/learningEngine'
 import { useToast } from '@/hooks/use-toast'
+import { importTemplateXLSX, TemplateImportResult } from '@/lib/templateImporter'
+import { Layers, AlertTriangle } from 'lucide-react'
 
-type ImportStage = 'upload' | 'mapping' | 'preview' | 'success'
+type ImportStage = 'upload' | 'mapping' | 'preview' | 'success' | 'template'
 
 interface PreviewItem {
   id: string
@@ -79,7 +81,18 @@ interface PendingMappingFile {
 export default function ImportBank() {
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { categories, learnedRules, importTransactionsBatch, settings } = useFinance()
+  const {
+    categories,
+    learnedRules,
+    importTransactionsBatch,
+    settings,
+    financialItems,
+    classificationRules,
+  } = useFinance()
+
+  // Template import state (Part 1 — leitura da planilha histórica)
+  const [templateResult, setTemplateResult] = useState<TemplateImportResult | null>(null)
+  const [templateBusy, setTemplateBusy] = useState(false)
 
   const [stage, setStage] = useState<ImportStage>('upload')
   const [processedFileNames, setProcessedFileNames] = useState<string[]>([])
