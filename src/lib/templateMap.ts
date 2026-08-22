@@ -1399,12 +1399,20 @@ export function detectMonths(headerRow: (string | number | null | undefined)[]):
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
 
+  // Pre-normalize the canonical labels so accented entries (MARÇO — cedilla)
+  // compare against the de-accented header cells. Without this the header
+  // "MARÇO" normalizes to "MARCO" while the canonical "MARÇO" stays accented,
+  // so March never matches and detection falls back to the E:P layout.
+  const normLong = CANONICAL_MONTH_LABELS.map(norm)
+  const normShort = CANONICAL_MONTH_LABELS_SHORT.map(norm)
+
   for (let i = 0; i < headerRow.length; i++) {
     const h = norm(headerRow[i])
     if (!h) continue
-    // match "JANEIRO" / "JAN" / "JAN/" etc.
-    const idxLong = CANONICAL_MONTH_LABELS.findIndex((m) => m === h || h.startsWith(m))
-    const idxShort = CANONICAL_MONTH_LABELS_SHORT.findIndex((m) => m === h)
+    // match "JANEIRO" / "JAN" / "JAN/" etc. — `i` is the array index, which for
+    // a 1-based matrix row IS the 1-based column number (index 0 = null).
+    const idxLong = normLong.findIndex((m) => m === h || h.startsWith(m))
+    const idxShort = normShort.findIndex((m) => m === h)
     const idx = idxLong >= 0 ? idxLong : idxShort
     if (idx >= 0 && !months[idx + 1]) {
       // The matrix rows are 1-based (index 0 unused), so the array index `i`
@@ -1693,7 +1701,11 @@ export function findItemRowByName(
 
   // Section bounds for this class in this year — keeps the search inside the block.
   const section = getSectionBounds(map.year, classId)
-  const lo = section ? Math.max(1, section.startRow - 1, cell.row - 10) : Math.max(1, cell.row - 10)
+  // startRow is the first item row of the section — search from there, NOT
+  // startRow-1 (which would peek into the previous section's total/percent
+  // rows and could match a neighbouring item). endRow is exclusive (last item
+  // row + 1), which is the correct upper bound for the item search window.
+  const lo = section ? Math.max(1, section.startRow, cell.row - 10) : Math.max(1, cell.row - 10)
   const hi = section
     ? Math.min(matrix.length - 1, section.endRow, cell.row + 10)
     : Math.min(matrix.length - 1, cell.row + 10)
@@ -1919,24 +1931,49 @@ export function diagnoseSheet(
     }
   }
 
-  // totals found — for an unknown year, scan for the historical anchors
-  const totalsSeeds = year
-    ? buildTotalsForYear(year).map((t) => ({
+  // totals found — each total is searched ONLY within its own section bounds
+  // (startRow .. endRow+5), never the whole sheet. A global scan would assign
+  // the FIRST "Total" (Receitas, ~row 10/11) to every class. For an unknown
+  // year (null) we fall back to the 2025 section bounds as the reference
+  // layout. The despesas_adicionais total carries the historical "Total
+  // despesas extras" anchor, searched inside the adicionais section only.
+  const totalsSeeds: { label: string; anchor: string; lo: number; hi: number }[] = []
+  if (year) {
+    for (const t of buildTotalsForYear(year)) {
+      const ctx = t.sectionContext
+      totalsSeeds.push({
         label: t.kind === 'percent' ? '% sobre receita' : `Total ${t.classId}`,
         anchor: t.anchor,
-      }))
-    : [
-        { label: 'Total Receitas', anchor: 'Total' },
-        { label: 'Total Investimentos', anchor: 'Total' },
-        { label: 'Total Despesas Fixas', anchor: 'Total' },
-        { label: 'Total Despesas Variáveis', anchor: 'Total' },
-        { label: 'Total Despesas Extras', anchor: 'Total' },
-        { label: 'Total Despesas Adicionais', anchor: 'Total despesas extras' },
-      ]
+        lo: ctx ? ctx.startRow : 1,
+        hi: ctx ? ctx.endRow + 5 : rowCount - 1,
+      })
+    }
+  } else {
+    const fallbackBounds = SECTION_BOUNDS[2025]
+    const fallbackSeeds: { classId: string; anchor: string }[] = [
+      { classId: 'receitas', anchor: 'Total' },
+      { classId: 'investimentos', anchor: 'Total' },
+      { classId: 'despesas_fixas', anchor: 'Total' },
+      { classId: 'despesas_variaveis', anchor: 'Total' },
+      { classId: 'despesas_extras', anchor: 'Total' },
+      { classId: 'despesas_adicionais', anchor: 'Total despesas extras' },
+    ]
+    for (const { classId, anchor } of fallbackSeeds) {
+      const b = fallbackBounds?.[classId]
+      totalsSeeds.push({
+        label: `Total ${classId}`,
+        anchor,
+        lo: b ? b.startRow : 1,
+        hi: b ? b.endRow + 5 : rowCount - 1,
+      })
+    }
+  }
   const totalsFound: SheetDiagnostic['totalsFound'] = totalsSeeds.map((t) => {
     const normAnchor = normalizeAnchorLabel(t.anchor)
     let row: number | null = null
-    for (let r = 1; r < rowCount; r++) {
+    const lo = Math.max(1, t.lo)
+    const hi = Math.min(rowCount - 1, t.hi)
+    for (let r = lo; r <= hi; r++) {
       const rowArr = matrix[r] || []
       if (rowArr.some((c) => normalizeAnchorLabel(String(c ?? '')).includes(normAnchor))) {
         row = r

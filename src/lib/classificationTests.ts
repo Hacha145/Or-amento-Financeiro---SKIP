@@ -26,6 +26,8 @@ import {
   reconcileSheet,
   detectMonths,
   txKey,
+  CANONICAL_LABEL_COLUMN,
+  CANONICAL_CLASS_COLUMN,
 } from './templateMap'
 
 export interface ClassificationTest {
@@ -39,6 +41,8 @@ export interface ClassificationTest {
 // ---------------------------------------------------------------------------
 // Helpers to build a synthetic sheet matrix (1-based, index 0 unused) so we
 // can exercise the templateMap functions without reading a real XLSX file.
+// The synthetic sheet mirrors the REAL column layout: item names in column D
+// (4), class headers in column A (1), month headers in row 1.
 // ---------------------------------------------------------------------------
 
 /** Build an empty 1-based matrix of [rows][cols], index 0 unused. */
@@ -56,17 +60,20 @@ function setLabel(m: (string | number | null)[][], row: number, col: number, lab
   m[row][col] = label
 }
 
-const LABEL_COL = 2 // B (canonical)
-const CLASS_COL = 1 // A
+// Real column layout — item names live in column D (4), class headers in A (1).
+const LABEL_COL = CANONICAL_LABEL_COLUMN // 4 (D)
+const CLASS_COL = CANONICAL_CLASS_COLUMN // 1 (A)
 
 /**
- * Build a canonical 2024 sheet matrix with the class headers, total rows,
- * saldo, month headers, and a couple of item labels so the templateMap
- * functions can validate anchors and locate items.
+ * Build a canonical 2025 sheet matrix with the class headers, total rows,
+ * saldo, month headers, and the item labels so the templateMap functions can
+ * validate anchors and locate items. Rows mirror the real workbook:
+ *   Receitas 6-9, Investimentos 15-19, Fixas 27-45, Variáveis 51-70,
+ *   Extras 76-86, Adicionais 92-116, Saldo 129.
  */
-function buildCanonicalSheet2024(): (string | number | null)[][] {
-  const m = emptyMatrix(120, 17)
-  // Header row 1 = month labels
+function buildCanonicalSheet2025(): (string | number | null)[][] {
+  const m = emptyMatrix(130, 17)
+  // Header row 1 = month labels (col D=4 carries "Total", E..P = Jan..Dec)
   const months = [
     'JANEIRO',
     'FEVEREIRO',
@@ -84,37 +91,38 @@ function buildCanonicalSheet2024(): (string | number | null)[][] {
   setLabel(m, 1, 4, 'Total')
   for (let i = 0; i < 12; i++) setLabel(m, 1, 5 + i, months[i])
 
-  // Class headers
-  setLabel(m, 2, CLASS_COL, 'RECEITAS')
-  setLabel(m, 19, CLASS_COL, 'DESPESAS FIXAS')
-  setLabel(m, 45, CLASS_COL, 'DESPESAS VARIÁVEIS')
-  setLabel(m, 69, CLASS_COL, 'DESPESAS EXTRAS')
-  setLabel(m, 83, CLASS_COL, 'DESPESAS ADICIONAIS')
+  // Class headers (column A)
+  setLabel(m, 5, CLASS_COL, 'RECEITAS')
+  setLabel(m, 14, CLASS_COL, 'INVESTIMENTOS')
+  setLabel(m, 26, CLASS_COL, 'DESPESAS FIXAS')
+  setLabel(m, 50, CLASS_COL, 'DESPESAS VARIÁVEIS')
+  setLabel(m, 75, CLASS_COL, 'DESPESAS EXTRAS')
+  setLabel(m, 91, CLASS_COL, 'DESPESAS ADICIONAIS')
 
-  // Item labels (a representative subset)
-  setLabel(m, 3, LABEL_COL, 'Salário')
-  setLabel(m, 22, LABEL_COL, 'Aluguel')
-  setLabel(m, 57, LABEL_COL, 'Supermercado')
-  setLabel(m, 86, LABEL_COL, 'Restaurantes/bares')
-  setLabel(m, 106, LABEL_COL, 'Compras marketplace')
+  // Item labels (column D) — a representative subset at the real 2025 rows.
+  setLabel(m, 6, LABEL_COL, 'Salário')
+  setLabel(m, 27, LABEL_COL, 'Aluguel')
+  setLabel(m, 60, LABEL_COL, 'Supermercado')
+  setLabel(m, 94, LABEL_COL, 'Restaurantes/bares')
+  setLabel(m, 111, LABEL_COL, 'Compras marketplace')
 
-  // Total rows
-  setLabel(m, 10, LABEL_COL, 'Total de Receitas')
-  setLabel(m, 44, LABEL_COL, 'Total Despesas Fixas')
-  setLabel(m, 68, LABEL_COL, 'Total Despesas Variáveis')
-  setLabel(m, 82, LABEL_COL, 'Total Despesas Extras')
-  setLabel(m, 113, LABEL_COL, 'Total Despesas Adicionais')
-  setLabel(m, 114, LABEL_COL, 'Total de Despesas')
-  setLabel(m, 115, LABEL_COL, 'Saldo')
-  setLabel(m, 116, LABEL_COL, '% sobre Receita')
+  // Total rows. Receitas/Investimentos total in column D ("Total"); despesas
+  // totals in column C ("Total"); Despesas Adicionais carries the historical
+  // "Total despesas extras" anchor.
+  setLabel(m, 11, LABEL_COL, 'Total') // Receitas total
+  setLabel(m, 47, 3, 'Total') // Fixas total (col C)
+  setLabel(m, 72, 3, 'Total') // Variáveis total (col C)
+  setLabel(m, 88, 3, 'Total') // Extras total (col C)
+  setLabel(m, 118, 3, 'Total despesas extras') // Adicionais total (historical label)
+  setLabel(m, 129, LABEL_COL, 'Saldo')
 
-  // Fill some values so reconciliation can be tested
+  // Fill some values so reconciliation can be tested.
   // Salário Jan = 5000 (col E=5)
-  m[3][5] = 5000
+  m[6][5] = 5000
   // Aluguel Jan = 1500
-  m[22][5] = 1500
+  m[27][5] = 1500
   // Supermercado Jan = 800
-  m[57][5] = 800
+  m[60][5] = 800
   return m
 }
 
@@ -318,11 +326,11 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
   // ----- §3.3 template / sheet tests -----
   {
     id: 'sheet-structure-intact',
-    description: 'Planilha canônica 2024: estrutura reconhecida (âncoras validadas)',
+    description: 'Planilha canônica 2025: estrutura reconhecida (âncoras validadas)',
     expectation: "locateItem para 'item-supermercado' mês 1 retorna method='coordinate'",
     run: () => {
-      const matrix = buildCanonicalSheet2024()
-      const map = buildYearSheetMap('Orçamento 2024', 2024)
+      const matrix = buildCanonicalSheet2025()
+      const map = buildYearSheetMap('Orçamento 2025', 2025)
       // re-resolve months from the actual header
       const { months, totalColumn } = detectMonths(matrix[1])
       map.monthColumns = months
@@ -333,25 +341,25 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
         itemId: 'item-supermercado',
         month: 1,
       })
-      const pass = loc.found && loc.method === 'coordinate' && loc.row === 57
+      const pass = loc.found && loc.method === 'coordinate' && loc.row === 60
       return {
         pass,
-        detail: `found=${loc.found}, method=${loc.method}, row=${loc.row} (esperado coordinate/57)`,
+        detail: `found=${loc.found}, method=${loc.method}, row=${loc.row} (esperado coordinate/60)`,
       }
     },
   },
   {
     id: 'sheet-shifted-row',
     description:
-      'Linha deslocada: Supermercado na linha 58 (em vez de 57) → busca estrutural relocaliza',
-    expectation: "locateItem retorna found=true, method='search', row=58",
+      'Linha deslocada: Supermercado na linha 61 (em vez de 60) → busca estrutural relocaliza',
+    expectation: "locateItem retorna found=true, method='search', row=61",
     run: () => {
-      const matrix = buildCanonicalSheet2024()
+      const matrix = buildCanonicalSheet2025()
       // shift the Supermercado label down one row
-      matrix[57][LABEL_COL] = null
-      matrix[58][LABEL_COL] = 'Supermercado'
-      matrix[58][5] = 800
-      const map = buildYearSheetMap('Orçamento 2024', 2024)
+      matrix[60][LABEL_COL] = null
+      matrix[61][LABEL_COL] = 'Supermercado'
+      matrix[61][5] = 800
+      const map = buildYearSheetMap('Orçamento 2025', 2025)
       const { months, totalColumn } = detectMonths(matrix[1])
       map.monthColumns = months
       map.totalColumn = totalColumn
@@ -361,10 +369,10 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
         itemId: 'item-supermercado',
         month: 1,
       })
-      const pass = loc.found && loc.method === 'search' && loc.row === 58
+      const pass = loc.found && loc.method === 'search' && loc.row === 61
       return {
         pass,
-        detail: `found=${loc.found}, method=${loc.method}, row=${loc.row} (esperado search/58)`,
+        detail: `found=${loc.found}, method=${loc.method}, row=${loc.row} (esperado search/61)`,
       }
     },
   },
@@ -374,11 +382,11 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
       'Categoria removida: label do item ausente na planilha → locateItem informa divergência, não adivinha posição',
     expectation: "locateItem para 'item-supermercado' (label removida) retorna found=false",
     run: () => {
-      const matrix = buildCanonicalSheet2024()
+      const matrix = buildCanonicalSheet2025()
       // remove the Supermercado label entirely (category removed/renamed)
-      matrix[57][LABEL_COL] = null
-      matrix[57][5] = null
-      const map = buildYearSheetMap('Orçamento 2024', 2024)
+      matrix[60][LABEL_COL] = null
+      matrix[60][5] = null
+      const map = buildYearSheetMap('Orçamento 2025', 2025)
       const { months, totalColumn } = detectMonths(matrix[1])
       map.monthColumns = months
       map.totalColumn = totalColumn
@@ -400,13 +408,13 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
     description:
       'Categoria adicionada: rótulo desconhecido inserido na planilha → itens conhecidos ainda localizados, diferença informada',
     expectation:
-      "locateItem para 'item-supermercado' retorna found=true (coordinate/57) mesmo com rótulo extra na linha 60",
+      "locateItem para 'item-supermercado' retorna found=true (coordinate/60) mesmo com rótulo extra na linha 65",
     run: () => {
-      const matrix = buildCanonicalSheet2024()
+      const matrix = buildCanonicalSheet2025()
       // insert an unknown category label at an unused row within the variáveis block
-      setLabel(matrix, 60, LABEL_COL, 'Delivery novíssimo')
-      matrix[60][5] = 123.45
-      const map = buildYearSheetMap('Orçamento 2024', 2024)
+      setLabel(matrix, 65, LABEL_COL, 'Delivery novíssimo')
+      matrix[65][5] = 123.45
+      const map = buildYearSheetMap('Orçamento 2025', 2025)
       const { months, totalColumn } = detectMonths(matrix[1])
       map.monthColumns = months
       map.totalColumn = totalColumn
@@ -416,26 +424,26 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
         itemId: 'item-supermercado',
         month: 1,
       })
-      const pass = loc.found && loc.method === 'coordinate' && loc.row === 57
+      const pass = loc.found && loc.method === 'coordinate' && loc.row === 60
       return {
         pass,
-        detail: `found=${loc.found}, method=${loc.method}, row=${loc.row} (esperado coordinate/57 — item conhecido intacto apesar do rótulo extra)`,
+        detail: `found=${loc.found}, method=${loc.method}, row=${loc.row} (esperado coordinate/60 — item conhecido intacto apesar do rótulo extra)`,
       }
     },
   },
   {
     id: 'sheet-different-year',
-    description: 'Ano diferente: mapa para 2025 resolve colunas e itens independentemente',
+    description: 'Ano diferente: mapa para 2024 resolve colunas e itens independentemente',
     expectation:
-      "buildYearSheetMap('Orçamento 2025', 2025).year === 2025 e item-supermercado row=57",
+      "buildYearSheetMap('Orçamento 2024', 2024).year === 2024 e item-supermercado row=58",
     run: () => {
-      const map2025 = buildYearSheetMap('Orçamento 2025', 2025)
-      const okYear = map2025.year === 2025
-      const cell = map2025.items.find((c) => c.itemId === 'item-supermercado' && c.month === 1)
-      const okRow = !!cell && cell.row === 57
+      const map2024 = buildYearSheetMap('Orçamento 2024', 2024)
+      const okYear = map2024.year === 2024
+      const cell = map2024.items.find((c) => c.itemId === 'item-supermercado' && c.month === 1)
+      const okRow = !!cell && cell.row === 58
       return {
         pass: okYear && okRow,
-        detail: `year=${map2025.year}, supermercado.row=${cell?.row} (esperado 2025/57)`,
+        detail: `year=${map2024.year}, supermercado.row=${cell?.row} (esperado 2024/58)`,
       }
     },
   },
@@ -459,8 +467,8 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
     description: 'Totais: planilha vs reconstruídos → diferença R$ 0,00 (reconciliação)',
     expectation: 'reconcileSheet.totalDifference === 0 e ok === true',
     run: () => {
-      const matrix = buildCanonicalSheet2024()
-      const map = buildYearSheetMap('Orçamento 2024', 2024)
+      const matrix = buildCanonicalSheet2025()
+      const map = buildYearSheetMap('Orçamento 2025', 2025)
       const { months } = detectMonths(matrix[1])
       map.monthColumns = months
       // build sheetValues + txByItemMonth from the same 3 values we set,
@@ -480,7 +488,7 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
           classId: 'receitas',
           categoryId: null,
           month: 1,
-          row: 3,
+          row: 6,
           value: 5000,
         },
         {
@@ -488,7 +496,7 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
           classId: 'despesas_fixas',
           categoryId: 'cat-fixas-habitacao',
           month: 1,
-          row: 22,
+          row: 27,
           value: 1500,
         },
         {
@@ -496,7 +504,7 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
           classId: 'despesas_variaveis',
           categoryId: 'cat-variaveis-alimentacao',
           month: 1,
-          row: 57,
+          row: 60,
           value: 800,
         },
       ]
@@ -507,7 +515,7 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
         sheetValues.set(key, { value: c.value })
         txByItemMonth.set(key, c.value)
       }
-      const rec = reconcileSheet('Orçamento 2024', 2024, sheetValues, txByItemMonth)
+      const rec = reconcileSheet('Orçamento 2025', 2025, sheetValues, txByItemMonth)
       const pass = rec.ok && Math.abs(rec.totalDifference) < 0.01
       return {
         pass,
@@ -525,7 +533,7 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
       const txByItemMonth = new Map<string, number>()
       sheetValues.set('item-supermercado:1', { value: 800 })
       txByItemMonth.set('item-supermercado:1', 750) // 50 de divergência
-      const rec = reconcileSheet('Orçamento 2024', 2024, sheetValues, txByItemMonth)
+      const rec = reconcileSheet('Orçamento 2025', 2025, sheetValues, txByItemMonth)
       const pass = !rec.ok && Math.abs(rec.totalDifference - 50) < 0.01
       return {
         pass,
@@ -538,8 +546,8 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
     description: 'validateByAnchor confirma âncoras presentes perto da linha esperada',
     expectation: 'validateByAnchor para item-supermercado retorna missing.length === 0',
     run: () => {
-      const matrix = buildCanonicalSheet2024()
-      const map = buildYearSheetMap('Orçamento 2024', 2024)
+      const matrix = buildCanonicalSheet2025()
+      const map = buildYearSheetMap('Orçamento 2025', 2025)
       const cell = map.items.find((c) => c.itemId === 'item-supermercado' && c.month === 1)!
       const { missing } = validateByAnchor(matrix, map, cell)
       const pass = missing.length === 0
@@ -555,7 +563,7 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
       'detectMonths resolve 12 colunas de mês a partir do cabeçalho real (não layout fixo)',
     expectation: 'detectMonths retorna 12 meses sem fallback',
     run: () => {
-      const matrix = buildCanonicalSheet2024()
+      const matrix = buildCanonicalSheet2025()
       const { months, fallback } = detectMonths(matrix[1])
       const count = Object.keys(months).length
       const pass = count === 12 && !fallback

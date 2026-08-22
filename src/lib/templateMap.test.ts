@@ -19,6 +19,7 @@ import {
   validateByAnchor,
   isAuxiliarySheet,
   detectMonths,
+  diagnoseSheet,
   reconcileSheet,
   getSectionBounds,
   type YearSheetMap,
@@ -147,6 +148,23 @@ function buildSynthetic2025(): (string | number | null)[][] {
   setLabel(m, 115, 4, 'Milhas')
   setLabel(m, 116, 4, 'Parcelas anteriores')
   setLabel(m, 129, 4, 'Saldo')
+
+  // Total + "% sobre receita" rows per section, so diagnoseSheet can locate
+  // each section's totals inside its OWN bounds (receitas/investimentos totals
+  // live in column D, despesa totals in column C, adicionais carries the
+  // historical "Total despesas extras" label).
+  setLabel(m, 11, 4, 'Total')
+  setLabel(m, 13, 4, '% sobre receita')
+  setLabel(m, 21, 4, 'Total')
+  setLabel(m, 23, 4, '% sobre receita')
+  setLabel(m, 47, 3, 'Total')
+  setLabel(m, 49, 3, '% sobre receita')
+  setLabel(m, 72, 3, 'Total')
+  setLabel(m, 74, 3, '% sobre receita')
+  setLabel(m, 88, 3, 'Total')
+  setLabel(m, 90, 3, '% sobre receita')
+  setLabel(m, 118, 3, 'Total despesas extras')
+  setLabel(m, 120, 3, '% sobre receita')
 
   // a couple of values so reconciliation has something to compare
   m[6][5] = 5000 // Salário Jan
@@ -343,5 +361,62 @@ describe('templateMap — detectMonths from headers', () => {
     expect(fallback).toBe(false)
     expect(months[1]).toBe(5) // Jan → column E (5)
     expect(months[12]).toBe(16) // Dec → column P (16)
+  })
+
+  it('detects MARÇO (cedilla) without falling back — accent normalization regression', () => {
+    // 1-based header row: index 0 unused, months at indices 5..16 (columns E..P).
+    const headerRow = [
+      null,
+      null,
+      null,
+      null,
+      null,
+      'JANEIRO',
+      'FEVEREIRO',
+      'MARÇO',
+      'ABRIL',
+      'MAIO',
+      'JUNHO',
+      'JULHO',
+      'AGOSTO',
+      'SETEMBRO',
+      'OUTUBRO',
+      'NOVEMBRO',
+      'DEZEMBRO',
+    ]
+    const { months, fallback } = detectMonths(headerRow)
+    expect(fallback).toBe(false)
+    expect(months[3]).toBe(7) // MARÇO → column G (7)
+    expect(Object.keys(months).length).toBe(12)
+  })
+})
+
+describe('templateMap — diagnoseSheet totals per section', () => {
+  it('2025: each total is found on a DIFFERENT row (no global first-match collision)', () => {
+    const matrix = buildSynthetic2025()
+    const diag = diagnoseSheet('Orçamento 2025', matrix)
+    expect(diag.year).toBe(2025)
+    const foundTotals = diag.totalsFound.filter((t) => t.row !== null)
+    expect(foundTotals.length).toBeGreaterThan(0)
+    // every located total sits on a distinct row — the bug assigned the same
+    // row (Receitas ~L10/11) to ALL classes via a global first-match scan.
+    const rows = foundTotals.map((t) => t.row)
+    expect(new Set(rows).size).toBe(rows.length)
+    // spot-check the canonical total row of each section
+    const byLabel = Object.fromEntries(foundTotals.map((t) => [t.label, t.row]))
+    expect(byLabel['Total receitas']).toBe(11)
+    expect(byLabel['Total investimentos']).toBe(21)
+    expect(byLabel['Total despesas_fixas']).toBe(47)
+    expect(byLabel['Total despesas_variaveis']).toBe(72)
+    expect(byLabel['Total despesas_extras']).toBe(88)
+    expect(byLabel['Total despesas_adicionais']).toBe(118)
+  })
+
+  it('2025: months detected from headers (no E:P fallback)', () => {
+    const matrix = buildSynthetic2025()
+    const diag = diagnoseSheet('Orçamento 2025', matrix)
+    expect(diag.monthsFallback).toBe(false)
+    expect(diag.janColumn).toBe(5)
+    expect(diag.dezColumn).toBe(16)
   })
 })
