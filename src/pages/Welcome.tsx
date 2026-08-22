@@ -32,22 +32,105 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useFinance } from '@/context/FinanceContext'
-import { parseCSV, autoDetectHeaders, parseDateToISO, parseAmountAndType } from '@/lib/parsers'
+import {
+  parseCSV,
+  parseXLSX,
+  autoDetectHeaders,
+  parseDateToISO,
+  parseAmountAndType,
+  ParsedTable,
+} from '@/lib/parsers'
+import { importTemplateXLSX, TemplateImportResult } from '@/lib/templateImporter'
+import { diagnoseSheet } from '@/lib/templateMap'
+import { TemplateImportReport } from '@/components/TemplateImportReport'
 import { ColumnMapping } from '@/types/finance'
 import { useToast } from '@/hooks/use-toast'
 
-type Step = 'welcome' | 'upload' | 'mapping' | 'seed' | 'done'
+type Step = 'welcome' | 'upload' | 'mapping' | 'seed' | 'done' | 'template'
+
+/**
+ * Convert the first sheet of a parsed XLSX workbook into the flat
+ * `ParsedTable` shape (headers + rows) consumed by the existing CSV mapping
+ * UI. This is the path taken for a standard bank-statement-style XLSX whose
+ * first sheet is a single flat table. The matrix returned by `parseXLSX` is
+ * 1-based (index 0 unused), so we read from row/column 1 onward.
+ *
+ * NOTE: this never reads the file as text — binary XLSX is decoded via the
+ * binary parser, so headers/rows come out clean (no garbled characters).
+ */
+function xlsxSheetToTable(matrix: (string | number | null)[][]): ParsedTable | null {
+  if (!matrix || matrix.length < 2) return null
+
+  // Find the first non-empty row to use as the header row. The 1-based matrix
+  // leaves index 0 unused, so start scanning at row 1.
+  let headerRowIdx = -1
+  for (let r = 1; r < matrix.length; r++) {
+    const row = matrix[r] || []
+    const nonEmpty = row.filter((c) => c !== null && c !== undefined && String(c).trim() !== '')
+    if (nonEmpty.length > 0) {
+      headerRowIdx = r
+      break
+    }
+  }
+  if (headerRowIdx < 0) return null
+
+  const headerRow = matrix[headerRowIdx] || []
+  // Trim trailing empties from the header so we don't create phantom columns.
+  let lastHeaderCol = headerRow.length - 1
+  while (
+    lastHeaderCol > 0 &&
+    (headerRow[lastHeaderCol] === null ||
+      headerRow[lastHeaderCol] === undefined ||
+      String(headerRow[lastHeaderCol]).trim() === '')
+  ) {
+    lastHeaderCol--
+  }
+  const headers = headerRow.slice(1, lastHeaderCol + 1).map((h, i) => {
+    const s = h == null ? '' : String(h).trim()
+    return s || `Coluna ${i + 1}`
+  })
+  if (headers.length === 0) return null
+
+  const rows: Record<string, string | number | null | undefined>[] = []
+  for (let r = headerRowIdx + 1; r < matrix.length; r++) {
+    const rowArr = matrix[r] || []
+    // skip fully-empty rows
+    const nonEmpty = rowArr.filter((c) => c !== null && c !== undefined && String(c).trim() !== '')
+    if (nonEmpty.length === 0) continue
+
+    const rowObj: Record<string, string | number | null | undefined> = {}
+    headers.forEach((h, colIdx) => {
+      // matrix columns are 1-based; headers were sliced from index 1, so the
+      // 0-based colIdx maps to matrix column colIdx + 1.
+      const v = rowArr[colIdx + 1]
+      rowObj[h] = v === undefined ? '' : v
+    })
+    rows.push(rowObj)
+  }
+
+  if (rows.length === 0) return null
+  return { headers, rows, rawMatrix: [] }
+}
 
 export default function Welcome() {
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { updateSettings, setTemplateConfig, importTransactionsBatch, loadDemoData } = useFinance()
+  const {
+    updateSettings,
+    setTemplateConfig,
+    importTransactionsBatch,
+    loadDemoData,
+    financialItems,
+    classificationRules,
+  } = useFinance()
 
   const [step, setStep] = useState<Step>('welcome')
   const [fileName, setFileName] = useState('')
   const [rawHeaders, setRawHeaders] = useState<string[]>([])
   const [rawRows, setRawRows] = useState<Record<string, any>[]>([])
   const [hasHeader, setHasHeader] = useState(true)
+  const [parsing, setParsing] = useState(false)
+  const [templateResult, setTemplateResult] = useState<TemplateImportResult | null>(null)
 
   const [mapping, setMapping] = useState<ColumnMapping>({
     dateCol: '',
@@ -65,8 +148,18 @@ export default function Welcome() {
     pendingReview: number
   } | null>(null)
 
-  // Handle file drop/input
-  const handleFileUpload = (
+  // File extension / type detection (§3 — never treat binary XLSX as text).
+  const isXlsxFile = (file: File): boolean => {
+    const name = file.name.toLowerCase()
+    const isType =
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      file.type === 'application/vnd.ms-excel'
+    return name.endsWith('.xlsx') || name.endsWith('.xls') || isType
+  }
+
+  // Handle file drop/input. Reads CSV as text and XLSX as binary (arrayBuffer),
+  // so binary spreadsheets are never fed to the CSV/text parser.
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement> | React.DragEvent<HTMLDivElement>,
   ) => {
     let file: File | null = null
@@ -83,41 +176,133 @@ export default function Welcome() {
     if (!file) return
 
     setFileName(file.name)
-    const reader = new FileReader()
+    setParsing(true)
 
-    reader.onload = (evt) => {
-      const text = evt.target?.result as string
-      if (!text) return
+    try {
+      if (isXlsxFile(file)) {
+        // ---- Binary XLSX path (§2): read as ArrayBuffer + parseXLSX ----
+        const buf = await file.arrayBuffer()
+        const parsed = await parseXLSX(buf)
+        const firstSheet = parsed.sheets[0]
+        if (!firstSheet) {
+          toast({
+            title: 'Erro ao ler arquivo',
+            description: 'Nenhuma aba encontrada no arquivo XLSX enviado.',
+            variant: 'destructive',
+          })
+          setParsing(false)
+          return
+        }
 
-      const parsed = parseCSV(text)
-      if (parsed.headers.length === 0) {
-        toast({
-          title: 'Erro ao ler arquivo',
-          description: 'Não foi possível detectar colunas no arquivo enviado.',
-          variant: 'destructive',
+        // Does this look like the canonical annual template workbook? If any
+        // sheet's year is recognized AND it has a Saldo row, treat it as a
+        // template import and surface the full diagnostic report instead of
+        // forcing it through the flat-table mapping UI.
+        const looksLikeTemplate = parsed.sheets.some((s) => {
+          const diag = diagnoseSheet(s.sheetName, s.matrix)
+          return diag.year !== null && diag.saldoRow !== null
         })
-        return
+
+        if (looksLikeTemplate) {
+          try {
+            const result = await importTemplateXLSX(buf, financialItems, classificationRules)
+            setTemplateResult(result)
+            setStep('template')
+            const divergent =
+              result.report.divergences.length > 0 || result.reconciliations.some((r) => !r.ok)
+            toast({
+              title: divergent ? 'Importação com divergência' : 'Template lido',
+              description: divergent
+                ? 'Revise o relatório de diagnóstico antes de concluir.'
+                : `${result.transactions.length} transações extraídas de ${result.report.sheetsFound.length} aba(s).`,
+              variant: divergent ? 'destructive' : 'default',
+            })
+          } catch (err) {
+            console.error('Template import error', err)
+            toast({
+              title: 'Erro ao importar template',
+              description: err instanceof Error ? err.message : 'Falha desconhecida na leitura.',
+              variant: 'destructive',
+            })
+          }
+          setParsing(false)
+          return
+        }
+
+        // Otherwise: standard bank-style XLSX (single flat table). Convert the
+        // first sheet's matrix to a flat ParsedTable and continue through the
+        // existing mapping UI, using the binary parser result.
+        const table = xlsxSheetToTable(firstSheet.matrix)
+        if (!table || table.headers.length === 0) {
+          toast({
+            title: 'Erro ao ler arquivo',
+            description: 'Não foi possível detectar colunas no arquivo XLSX enviado.',
+            variant: 'destructive',
+          })
+          setParsing(false)
+          return
+        }
+
+        setRawHeaders(table.headers)
+        setRawRows(table.rows as Record<string, any>[])
+        const detected = autoDetectHeaders(table.headers)
+        setMapping({
+          dateCol: detected.dateCol,
+          descriptionCol: detected.descriptionCol,
+          amountCol: detected.amountCol,
+          categoryCol: detected.categoryCol,
+          typeCol: detected.typeCol,
+          notesCol: detected.notesCol,
+          hasHeader: true,
+        })
+        setStep('mapping')
+      } else {
+        // ---- CSV / text path: read as text + parseCSV (unchanged) ----
+        const text = await file.text()
+        if (!text) {
+          toast({
+            title: 'Erro ao ler arquivo',
+            description: 'O arquivo enviado está vazio.',
+            variant: 'destructive',
+          })
+          setParsing(false)
+          return
+        }
+        const parsed = parseCSV(text)
+        if (parsed.headers.length === 0) {
+          toast({
+            title: 'Erro ao ler arquivo',
+            description: 'Não foi possível detectar colunas no arquivo enviado.',
+            variant: 'destructive',
+          })
+          setParsing(false)
+          return
+        }
+
+        setRawHeaders(parsed.headers)
+        setRawRows(parsed.rows as Record<string, any>[])
+        const detected = autoDetectHeaders(parsed.headers)
+        setMapping({
+          dateCol: detected.dateCol,
+          descriptionCol: detected.descriptionCol,
+          amountCol: detected.amountCol,
+          categoryCol: detected.categoryCol,
+          typeCol: detected.typeCol,
+          notesCol: detected.notesCol,
+          hasHeader: true,
+        })
+        setStep('mapping')
       }
-
-      setRawHeaders(parsed.headers)
-      setRawRows(parsed.rows)
-
-      // Auto-detect headers
-      const detected = autoDetectHeaders(parsed.headers)
-      setMapping({
-        dateCol: detected.dateCol,
-        descriptionCol: detected.descriptionCol,
-        amountCol: detected.amountCol,
-        categoryCol: detected.categoryCol,
-        typeCol: detected.typeCol,
-        notesCol: detected.notesCol,
-        hasHeader: true,
+    } catch (err) {
+      console.error('Error parsing file', file.name, err)
+      toast({
+        title: 'Erro ao ler arquivo',
+        description: 'Não foi possível ler o conteúdo do arquivo enviado.',
+        variant: 'destructive',
       })
-
-      setStep('mapping')
+    } finally {
+      setParsing(false)
     }
-
-    reader.readAsText(file)
   }
 
   // Handle mapping confirmation
@@ -178,6 +363,16 @@ export default function Welcome() {
 
     updateSettings({ setupCompleted: true })
     setStep('done')
+  }
+
+  // Finish after a template import: mark setup complete and go to dashboard.
+  const handleTemplateFinish = () => {
+    updateSettings({ setupCompleted: true })
+    toast({
+      title: 'Template importado',
+      description: 'Sua planilha modelo foi processada com sucesso.',
+    })
+    navigate('/')
   }
 
   // Quick start options
@@ -314,7 +509,7 @@ export default function Welcome() {
                 <Upload className="w-6 h-6" />
               </div>
               <p className="font-semibold text-slate-800 text-base">
-                Arraste seu arquivo ou clique para procurar
+                {parsing ? 'Lendo planilha…' : 'Arraste seu arquivo ou clique para procurar'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
                 Suporta planilhas CSV, XLSX, XLS exportadas do Excel, Google Sheets ou bancos.
@@ -328,6 +523,10 @@ export default function Welcome() {
                 <strong>Descrição</strong> e <strong>Valor</strong>. A coluna de{' '}
                 <strong>Categoria</strong> é opcional mas recomendada para alimentar o histórico de
                 aprendizado.
+              </p>
+              <p className="pt-1 border-t border-slate-200/70 mt-2 text-slate-500">
+                Arquivos <strong>.xlsx</strong> binários são lidos com o parser correto (não como
+                texto), evitando caracteres estranhos na prévia.
               </p>
             </div>
           </CardContent>
@@ -658,6 +857,37 @@ export default function Welcome() {
               className="w-full sm:w-auto px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base py-5"
             >
               Ver meu painel &rarr;
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {/* STEP TEMPLATE: full diagnostic report for a canonical template .xlsx */}
+      {step === 'template' && templateResult && (
+        <Card className="w-full max-w-[900px] shadow-lg border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold flex items-center gap-2">
+              <Layers className="w-5 h-5 text-emerald-600" />
+              Relatório de Importação da Planilha Modelo
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Arquivo: <span className="font-medium text-slate-800">{fileName}</span> — leitura
+              binária da planilha histórica com validação por âncoras e reconciliação de totais.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TemplateImportReport result={templateResult} />
+          </CardContent>
+          <CardFooter className="flex justify-between border-t pt-4">
+            <Button variant="outline" onClick={() => setStep('upload')}>
+              Enviar outro arquivo
+            </Button>
+            <Button
+              onClick={handleTemplateFinish}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            >
+              Concluir e ver painel
+              <ArrowRight className="w-4 h-4" />
             </Button>
           </CardFooter>
         </Card>
