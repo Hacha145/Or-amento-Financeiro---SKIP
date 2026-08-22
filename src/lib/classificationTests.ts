@@ -369,8 +369,9 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
     },
   },
   {
-    id: 'sheet-category-added',
-    description: 'Categoria adicionada: âncora do item ausente → diagnostic sem adivinhar posição',
+    id: 'sheet-category-removed',
+    description:
+      'Categoria removida: label do item ausente na planilha → locateItem informa divergência, não adivinha posição',
     expectation: "locateItem para 'item-supermercado' (label removida) retorna found=false",
     run: () => {
       const matrix = buildCanonicalSheet2024()
@@ -391,6 +392,34 @@ export const CLASSIFICATION_TESTS: ClassificationTest[] = [
       return {
         pass,
         detail: `found=${loc.found}, method=${loc.method}, row=${loc.row} (esperado NOT found — não adivinhar)`,
+      }
+    },
+  },
+  {
+    id: 'sheet-category-added',
+    description:
+      'Categoria adicionada: rótulo desconhecido inserido na planilha → itens conhecidos ainda localizados, diferença informada',
+    expectation:
+      "locateItem para 'item-supermercado' retorna found=true (coordinate/57) mesmo com rótulo extra na linha 60",
+    run: () => {
+      const matrix = buildCanonicalSheet2024()
+      // insert an unknown category label at an unused row within the variáveis block
+      setLabel(matrix, 60, LABEL_COL, 'Delivery novíssimo')
+      matrix[60][5] = 123.45
+      const map = buildYearSheetMap('Orçamento 2024', 2024)
+      const { months, totalColumn } = detectMonths(matrix[1])
+      map.monthColumns = months
+      map.totalColumn = totalColumn
+      const loc = locateItem(matrix, map, {
+        classId: 'despesas_variaveis',
+        categoryId: 'cat-variaveis-alimentacao',
+        itemId: 'item-supermercado',
+        month: 1,
+      })
+      const pass = loc.found && loc.method === 'coordinate' && loc.row === 57
+      return {
+        pass,
+        detail: `found=${loc.found}, method=${loc.method}, row=${loc.row} (esperado coordinate/57 — item conhecido intacto apesar do rótulo extra)`,
       }
     },
   },

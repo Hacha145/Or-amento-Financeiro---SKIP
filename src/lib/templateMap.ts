@@ -934,7 +934,7 @@ export function detectYearFromSheetName(sheetName: string): number | null {
  * E..P layout when headers can't be resolved, but flags the fallback so the
  * caller can emit a diagnostic.
  */
-export function detectMonths(headerRow: (string | null | undefined)[]): {
+export function detectMonths(headerRow: (string | number | null | undefined)[]): {
   months: MonthColumnMap
   totalColumn: number | null
   fallback: boolean
@@ -956,7 +956,9 @@ export function detectMonths(headerRow: (string | null | undefined)[]): {
     const idxShort = CANONICAL_MONTH_LABELS_SHORT.findIndex((m) => m === h)
     const idx = idxLong >= 0 ? idxLong : idxShort
     if (idx >= 0 && !months[idx + 1]) {
-      months[idx + 1] = i + 1
+      // The matrix rows are 1-based (index 0 unused), so the array index `i`
+      // IS the 1-based column number — no +1 adjustment.
+      months[idx + 1] = i
       fallback = false
     }
   }
@@ -966,7 +968,7 @@ export function detectMonths(headerRow: (string | null | undefined)[]): {
   for (let i = 0; i < headerRow.length; i++) {
     const h = norm(headerRow[i])
     if (h === 'TOTAL' || h === 'TOTAL ANUAL' || h === 'ANO') {
-      totalColumn = i + 1
+      totalColumn = i
       break
     }
   }

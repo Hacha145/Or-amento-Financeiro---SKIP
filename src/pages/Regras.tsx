@@ -206,12 +206,12 @@ export default function Regras() {
         description: testText,
         amount: 0,
         type: 'expense' as const,
-        source: '',
+        source: 'manual',
         categoryId: null,
         needsReview: false,
         createdAt: '',
         updatedAt: '',
-      } as Transaction
+      } as unknown as Transaction
       return { ruleId: r.id, ruleName: r.name, matches: evaluateRule(r, fakeTx) }
     })
     setTestResults(results)

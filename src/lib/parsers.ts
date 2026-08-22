@@ -512,7 +512,7 @@ export async function parseXLSX(data: ArrayBuffer): Promise<ParsedXLSX> {
   // dynamic import keeps the bundle lean if xlsx parsing isn't used
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(data, { options: { ignoreThemes: true } })
+  await wb.xlsx.load(data)
 
   const sheets: XLSXSheet[] = []
   wb.eachSheet((sheet) => {
