@@ -199,6 +199,84 @@ describe('incomeIdentity - Motor de Identificação de Entradas', () => {
       expect(res.reason).toBe('Transferência recebida')
     })
 
+    it('reconhece "Transferencia recebida" sem acento e variações com caixa mista e alta', () => {
+      const cases = [
+        'Transferencia recebida',
+        'transferência recebida',
+        'TRANSFERENCIA RECEBIDA',
+        'Transferencia Recebida',
+        'tranferencia recebida', // typo comum bancário
+        'TRANFERENCIA RECEBIDA',
+        'transferencia recebida de fulano de tal',
+        'TED recebida de empresa parceira ltda',
+        'doc recebido de cliente 456',
+        'transferencia enviada devolvida',
+        'devolução de transferência',
+        'DEVOLUCAO DE TRANSFERENCIA',
+        'credito de transferencia recebida',
+      ]
+
+      for (const desc of cases) {
+        const res = identifyIncome(
+          {
+            description: desc,
+            amount: 500,
+            type: 'income',
+          },
+          userIdentity,
+        )
+        expect(res.isIdentifiedIncome, `Falhou para: "${desc}"`).toBe(true)
+        expect(res.confidence).toBe('medium')
+        expect(res.reason).toBe('Transferência recebida')
+      }
+    })
+
+    it('reconhece variações gráficas bancárias de PIX, folha de pagamento, depósito, estorno', () => {
+      const pixRes = identifyIncome(
+        {
+          description: 'pix recebido de joao da silva',
+          amount: 120,
+          type: 'income',
+        },
+        userIdentity,
+      )
+      expect(pixRes.isIdentifiedIncome).toBe(true)
+      expect(pixRes.reason).toBe('PIX recebido')
+
+      const folhaRes = identifyIncome(
+        {
+          description: 'FOLHA DE PAGAMENTO MENSAL',
+          amount: 4500,
+          type: 'income',
+        },
+        userIdentity,
+      )
+      expect(folhaRes.isIdentifiedIncome).toBe(true)
+      expect(folhaRes.reason).toBe('Salário / Remuneração')
+
+      const depRes = identifyIncome(
+        {
+          description: 'deposito em conta dinheiro ag 1234',
+          amount: 300,
+          type: 'income',
+        },
+        userIdentity,
+      )
+      expect(depRes.isIdentifiedIncome).toBe(true)
+      expect(depRes.reason).toBe('Depósito em conta')
+
+      const estornoRes = identifyIncome(
+        {
+          description: 'estorno de debito indevido',
+          amount: 45,
+          type: 'income',
+        },
+        userIdentity,
+      )
+      expect(estornoRes.isIdentifiedIncome).toBe(true)
+      expect(estornoRes.reason).toBe('Reembolso ou estorno recebido')
+    })
+
     it('reconhece estorno ou reembolso recebido', () => {
       const res = identifyIncome(
         {

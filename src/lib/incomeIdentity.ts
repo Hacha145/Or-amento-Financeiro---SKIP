@@ -38,31 +38,40 @@ export interface IncomeIdentificationResult {
  */
 const INCOME_HEURISTIC_PATTERNS: { regex: RegExp; label: string }[] = [
   {
-    regex: /\b(PIX\s+RECEBIDO|PIX\s+REC|REC\s+PIX|RECEBIMENTO\s+PIX|TRANSF\s+PIX\s+REC)\b/i,
+    // PIX recebido e variações bancárias (ex: "PIX RECEBIDO", "PIX RECEBIDO DE", "REC PIX", "TRANSF PIX REC", "PIX REC")
+    regex:
+      /\b(PIX\s+RECEBIDO(\s+DE)?|PIX\s+REC|REC\s+PIX|RECEBIMENTO\s+(DE\s+)?PIX|TRANSF\s+PIX\s+REC|PIX\s+CREDITO)\b/i,
     label: 'PIX recebido',
   },
   {
+    // Transferência recebida: TED, DOC, TEF e transferências bancárias em geral,
+    // cobrindo "transferencia recebida", "tranferencia recebida" (typo comum), "transferencia enviada devolvida",
+    // "devolução de transferência", "credito de transf", etc.
     regex:
-      /\b(TED\s+RECEBIDA|DOC\s+RECEBIDO|TED\s+REC|DOC\s+REC|TRANSF\s+RECEBIDA|TRANSFERENCIA\s+RECEBIDA|CREDITO\s+DE\s+TRANSF)\b/i,
+      /\b((TRANSF(ERENCIA)?|TRANFERENCIA|TEF|TED|DOC)\s+(RECEBIDA|RECEBIDO)(\s+DE)?|(TED|DOC|TRANSF)\s+REC|CREDITO\s+DE\s+TRANSF(ERENCIA)?|TRANSF(ERENCIA)?\s+(ENVIADA\s+)?DEVOLVIDA|DEVOLUCAO\s+DE\s+TRANSF(ERENCIA)?)\b/i,
     label: 'Transferência recebida',
   },
   {
+    // Folha de pagamento, salário, vencimentos, pro labore
     regex:
-      /\b(SALARIO|REMUNERACAO|VENCIMENTO|FOLHA\s+DE\s+PAGTO|HOLERITE|PRO-LABORE|PRO\s+LABORE|CREDITO\s+DE\s+SALARIO)\b/i,
+      /\b(SALARIO|REMUNERACAO|VENCIMENTO(S)?|FOLHA\s+DE\s+PAG(AMEN)?TO|HOLERITE|PRO-LABORE|PRO\s+LABORE|CREDITO\s+DE\s+SALARIO|CRED\s+SALARIO)\b/i,
     label: 'Salário / Remuneração',
   },
   {
+    // Depósito em conta (dinheiro, cheque, identificado, etc.)
     regex:
-      /\b(DEPOSITO\s+DINHEIRO|DEPOSITO\s+IDENTIFICADO|DEP\s+DINH|DEP\s+CHEQUE|CREDITO\s+DEPOSITO|DEP\s+EM\s+CONTA)\b/i,
+      /\b(DEPOSITO(\s+EM\s+CONTA)?|DEPOSITO\s+DINHEIRO|DEPOSITO\s+IDENTIFICADO|DEP\s+DINH|DEP\s+CHEQUE|CREDITO\s+DEPOSITO|DEP\s+EM\s+CONTA|DEP\s+IDENT)\b/i,
     label: 'Depósito em conta',
   },
   {
+    // Reembolso, estorno, devolução recebida / devolução pix
     regex:
-      /\b(REEMBOLSO\s+RECEBIDO|REEMBOLSO|ESTORNO\s+RECEBIDO|ESTORNO\s+DE|DEVOLUCAO\s+RECEBIDA|CREDITO\s+ESTORNO|DEVOLUCAO\s+PIX)\b/i,
+      /\b(REEMBOLSO(\s+RECEBIDO)?|ESTORNO(\s+RECEBIDO)?|ESTORNO\s+DE|DEVOLUCAO(\s+RECEBIDA)?|CREDITO\s+ESTORNO|DEVOLUCAO\s+PIX)\b/i,
     label: 'Reembolso ou estorno recebido',
   },
   {
-    regex: /\b(DIVIDENDOS|RENDIMENTO|JUROS\s+S\s+CAPITAL|JCP|PROVENTOS|RESGATE\s+INVESTIMENTO)\b/i,
+    regex:
+      /\b(DIVIDENDOS|RENDIMENTO(S)?|JUROS\s+S(\/|\s+)CAPITAL|JCP|PROVENTOS|RESGATE\s+INVESTIMENTO)\b/i,
     label: 'Rendimentos / Investimentos',
   },
   {

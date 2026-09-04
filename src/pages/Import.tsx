@@ -38,10 +38,12 @@ import { useFinance } from '@/context/FinanceContext'
 import {
   parseCSV,
   parseOFX,
+  parseXLSX,
   autoDetectHeaders,
   parseDateToISO,
   parseAmountAndType,
   formatCurrencyBRL,
+  ParsedTable,
 } from '@/lib/parsers'
 import {
   classifyByExactMatch,
@@ -79,6 +81,58 @@ interface PendingMappingFile {
   file: File
   headers: string[]
   rows: Record<string, any>[]
+}
+
+/**
+ * Converte a primeira aba de uma planilha XLSX bancária simples em formato ParsedTable
+ * para reutilizar o fluxo de mapeamento e prévia sem distorção binária.
+ */
+function xlsxSheetToFlatTable(matrix: (string | number | null)[][]): ParsedTable | null {
+  if (!matrix || matrix.length < 2) return null
+
+  let headerRowIdx = -1
+  for (let r = 1; r < matrix.length; r++) {
+    const row = matrix[r] || []
+    const nonEmpty = row.filter((c) => c !== null && c !== undefined && String(c).trim() !== '')
+    if (nonEmpty.length > 0) {
+      headerRowIdx = r
+      break
+    }
+  }
+  if (headerRowIdx < 0) return null
+
+  const headerRow = matrix[headerRowIdx] || []
+  let lastHeaderCol = headerRow.length - 1
+  while (
+    lastHeaderCol > 0 &&
+    (headerRow[lastHeaderCol] === null ||
+      headerRow[lastHeaderCol] === undefined ||
+      String(headerRow[lastHeaderCol]).trim() === '')
+  ) {
+    lastHeaderCol--
+  }
+  const headers = headerRow.slice(1, lastHeaderCol + 1).map((h, i) => {
+    const s = h == null ? '' : String(h).trim()
+    return s || `Coluna ${i + 1}`
+  })
+  if (headers.length === 0) return null
+
+  const rows: Record<string, any>[] = []
+  for (let r = headerRowIdx + 1; r < matrix.length; r++) {
+    const rowArr = matrix[r] || []
+    const nonEmpty = rowArr.filter((c) => c !== null && c !== undefined && String(c).trim() !== '')
+    if (nonEmpty.length === 0) continue
+
+    const rowObj: Record<string, any> = {}
+    headers.forEach((h, colIdx) => {
+      const v = rowArr[colIdx + 1]
+      rowObj[h] = v === undefined ? '' : v
+    })
+    rows.push(rowObj)
+  }
+
+  if (rows.length === 0) return null
+  return { headers, rows, rawMatrix: [] }
 }
 
 export default function ImportBank() {
@@ -155,18 +209,23 @@ export default function ImportBank() {
     for (const file of files) {
       const fname = file.name
       fileNames.push(fname)
-      const isOfx = fname.toLowerCase().endsWith('.ofx')
+      const lowerName = fname.toLowerCase()
+      const isOfx = lowerName.endsWith('.ofx')
+      const isXlsx =
+        lowerName.endsWith('.xlsx') ||
+        lowerName.endsWith('.xls') ||
+        file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        file.type === 'application/vnd.ms-excel'
 
       try {
-        const text = await readFileAsync(file)
-        if (!text) continue
-
         if (isOfx) {
+          const text = await readFileAsync(file)
+          if (!text) continue
           const ofxTxs = parseOFX(text)
           if (ofxTxs.length === 0) {
             toast({
-              title: `Arquivo OFX vazio ou inválido`,
-              description: `Nenhuma transação encontrada em "${fname}".`,
+              title: `Arquivo OFX sem transações`,
+              description: `Nenhuma transação foi detectada em "${fname}".`,
               variant: 'destructive',
             })
             continue
@@ -174,8 +233,74 @@ export default function ImportBank() {
 
           const parsedItems = buildItemsFromOFX(ofxTxs, fname, rulesMap, accumulatedItems.length)
           accumulatedItems.push(...parsedItems)
+        } else if (isXlsx) {
+          // Arquivo binário XLSX: ler via parseXLSX
+          const buf = await file.arrayBuffer()
+          const parsedWorkbook = await parseXLSX(buf)
+          const firstSheet = parsedWorkbook.sheets[0]
+          if (!firstSheet) {
+            toast({
+              title: `Planilha sem abas`,
+              description: `Nenhuma aba encontrada em "${fname}".`,
+              variant: 'destructive',
+            })
+            continue
+          }
+
+          const table = xlsxSheetToFlatTable(firstSheet.matrix)
+          if (!table || table.headers.length === 0 || table.rows.length === 0) {
+            toast({
+              title: `Planilha vazia ou ilegível`,
+              description: `Não foi possível detectar colunas e linhas válidas em "${fname}".`,
+              variant: 'destructive',
+            })
+            continue
+          }
+
+          const tmpl = settings.templateConfig?.columnMapping
+          const detected = autoDetectHeaders(table.headers)
+
+          const fDate =
+            tmpl && table.headers.includes(tmpl.dateCol) ? tmpl.dateCol : detected.dateCol
+          const fDesc =
+            tmpl && table.headers.includes(tmpl.descriptionCol)
+              ? tmpl.descriptionCol
+              : detected.descriptionCol
+          const fAmt =
+            tmpl && table.headers.includes(tmpl.amountCol) ? tmpl.amountCol : detected.amountCol
+          const fCat =
+            tmpl && tmpl.categoryCol && table.headers.includes(tmpl.categoryCol)
+              ? tmpl.categoryCol
+              : detected.categoryCol
+          const fType =
+            tmpl && tmpl.typeCol && table.headers.includes(tmpl.typeCol)
+              ? tmpl.typeCol
+              : detected.typeCol
+
+          if (fDate && fDesc && fAmt) {
+            const parsedItems = buildItemsFromCSV(
+              table.rows,
+              fname,
+              fDate,
+              fDesc,
+              fAmt,
+              fCat,
+              fType,
+              rulesMap,
+              accumulatedItems.length,
+            )
+            accumulatedItems.push(...parsedItems)
+          } else {
+            needsMappingFiles.push({
+              file,
+              headers: table.headers,
+              rows: table.rows,
+            })
+          }
         } else {
-          // CSV / XLSX text representation
+          // Arquivos texto: CSV delimitado ou TXT
+          const text = await readFileAsync(file)
+          if (!text) continue
           const parsed = parseCSV(text)
           if (parsed.headers.length === 0 || parsed.rows.length === 0) {
             toast({
@@ -221,7 +346,6 @@ export default function ImportBank() {
             )
             accumulatedItems.push(...parsedItems)
           } else {
-            // Put into mapping queue
             needsMappingFiles.push({
               file,
               headers: parsed.headers,
@@ -233,7 +357,8 @@ export default function ImportBank() {
         console.error('Error processing file', fname, err)
         toast({
           title: `Erro ao processar ${fname}`,
-          description: 'Ocorreu um erro ao ler o conteúdo do arquivo.',
+          description:
+            err instanceof Error ? err.message : 'Ocorreu um erro ao ler o conteúdo do arquivo.',
           variant: 'destructive',
         })
       }

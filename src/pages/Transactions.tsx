@@ -16,6 +16,9 @@ import {
   CreditCard,
   UserCheck,
   TrendingUp,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react'
 import { identifyIncome } from '@/lib/incomeIdentity'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,6 +74,12 @@ export default function Transactions() {
   const [typeFilter, setTypeFilter] = useState('all') // all | expense | income
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter) // all | pending | classified
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  // Sorting State
+  type SortColumn = 'date' | 'description' | 'category' | 'amount'
+  type SortDirection = 'asc' | 'desc' | null
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
 
   // Modal / Edit state
   const [editModalTx, setEditModalTx] = useState<Transaction | null>(null)
@@ -146,10 +155,64 @@ export default function Transactions() {
     })
   }, [monthTransactions, searchTerm, categoryFilter, typeFilter, statusFilter])
 
+  // Sort handler: toggles none -> asc -> desc -> none
+  const handleSortToggle = (col: SortColumn) => {
+    if (sortColumn !== col) {
+      setSortColumn(col)
+      setSortDirection('asc')
+    } else if (sortDirection === 'asc') {
+      setSortDirection('desc')
+    } else if (sortDirection === 'desc') {
+      setSortColumn(null)
+      setSortDirection(null)
+    } else {
+      setSortDirection('asc')
+    }
+  }
+
+  // Sorted transactions (applied to both table view and mobile card view)
+  const sortedTransactions = useMemo(() => {
+    if (!sortColumn || !sortDirection) {
+      return filteredTransactions
+    }
+
+    const mult = sortDirection === 'asc' ? 1 : -1
+
+    return [...filteredTransactions].sort((a, b) => {
+      if (sortColumn === 'date') {
+        const dateCompare = a.date.localeCompare(b.date)
+        if (dateCompare !== 0) return dateCompare * mult
+        return (a.createdAt || '').localeCompare(b.createdAt || '') * mult
+      }
+
+      if (sortColumn === 'description') {
+        return a.description.localeCompare(b.description, 'pt-BR', { sensitivity: 'base' }) * mult
+      }
+
+      if (sortColumn === 'category') {
+        const catA = a.categoryId ? categoryMap.get(a.categoryId)?.name || '' : ''
+        const catB = b.categoryId ? categoryMap.get(b.categoryId)?.name || '' : ''
+        if (!catA && catB) return 1
+        if (catA && !catB) return -1
+        return catA.localeCompare(catB, 'pt-BR', { sensitivity: 'base' }) * mult
+      }
+
+      if (sortColumn === 'amount') {
+        // Numeric amount sorting.
+        // Expenses are negative relative cash outflow, income is positive
+        const valA = a.type === 'expense' ? -Math.abs(a.amount) : Math.abs(a.amount)
+        const valB = b.type === 'expense' ? -Math.abs(b.amount) : Math.abs(b.amount)
+        return (valA - valB) * mult
+      }
+
+      return 0
+    })
+  }, [filteredTransactions, sortColumn, sortDirection, categoryMap])
+
   // Selection handlers
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(filteredTransactions.map((t) => t.id))
+      setSelectedIds(sortedTransactions.map((t) => t.id))
     } else {
       setSelectedIds([])
     }
@@ -245,9 +308,9 @@ export default function Transactions() {
     })
   }
 
-  // Export current view to CSV
+  // Export current view to CSV (respects current sort order)
   const handleExportFiltered = () => {
-    const dataToExport = filteredTransactions.map((t) => ({
+    const dataToExport = sortedTransactions.map((t) => ({
       date: t.date,
       description: t.description,
       amount: t.amount,
@@ -390,22 +453,77 @@ export default function Transactions() {
       {/* Transactions Table / List */}
       <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-[#101A34]/60">
-          <div className="text-xs text-[#B6C2D4] font-medium">
-            Exibindo <strong className="text-[#F8FAFC]">{filteredTransactions.length}</strong> de{' '}
-            <strong className="text-[#F8FAFC]">{monthTransactions.length}</strong> transações no mês
+          <div className="text-xs text-[#B6C2D4] font-medium flex items-center gap-2 flex-wrap">
+            <span>
+              Exibindo <strong className="text-[#F8FAFC]">{sortedTransactions.length}</strong> de{' '}
+              <strong className="text-[#F8FAFC]">{monthTransactions.length}</strong> transações no
+              mês
+            </span>
+            {sortColumn && sortDirection && (
+              <Badge
+                variant="outline"
+                className="text-[10px] bg-blue-500/10 text-blue-300 border-blue-500/30 gap-1 font-normal py-0 px-2"
+              >
+                Ordenado por:{' '}
+                <strong className="font-semibold">
+                  {sortColumn === 'date' && 'Data'}
+                  {sortColumn === 'description' && 'Descrição'}
+                  {sortColumn === 'category' && 'Categoria'}
+                  {sortColumn === 'amount' && 'Valor'}
+                </strong>{' '}
+                ({sortDirection === 'asc' ? 'crescente' : 'decrescente'})
+              </Badge>
+            )}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleExportFiltered}
-            className="text-xs h-8 gap-1.5 text-blue-300 hover:text-white hover:bg-[#202A40] rounded-xl border border-white/5"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Exportar CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Mobile-accessible Sort Selector */}
+            <div className="sm:hidden">
+              <Select
+                value={sortColumn && sortDirection ? `${sortColumn}-${sortDirection}` : 'default'}
+                onValueChange={(val) => {
+                  if (val === 'default') {
+                    setSortColumn(null)
+                    setSortDirection(null)
+                  } else {
+                    const [col, dir] = val.split('-') as [SortColumn, 'asc' | 'desc']
+                    setSortColumn(col)
+                    setSortDirection(dir)
+                  }
+                }}
+              >
+                <SelectTrigger
+                  className="text-xs h-8 bg-[#101A34] text-[#B6C2D4] border-white/10 rounded-xl min-w-[120px]"
+                  aria-label="Opções de ordenação para dispositivos móveis"
+                >
+                  <SelectValue placeholder="Ordenar..." />
+                </SelectTrigger>
+                <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10 text-xs">
+                  <SelectItem value="default">Padrão (cronológico)</SelectItem>
+                  <SelectItem value="date-asc">Data (mais antiga)</SelectItem>
+                  <SelectItem value="date-desc">Data (mais recente)</SelectItem>
+                  <SelectItem value="description-asc">Descrição (A-Z)</SelectItem>
+                  <SelectItem value="description-desc">Descrição (Z-A)</SelectItem>
+                  <SelectItem value="category-asc">Categoria (A-Z)</SelectItem>
+                  <SelectItem value="category-desc">Categoria (Z-A)</SelectItem>
+                  <SelectItem value="amount-asc">Valor (menor primeiro)</SelectItem>
+                  <SelectItem value="amount-desc">Valor (maior primeiro)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleExportFiltered}
+              className="text-xs h-8 gap-1.5 text-blue-300 hover:text-white hover:bg-[#202A40] rounded-xl border border-white/5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Exportar CSV
+            </Button>
+          </div>
         </div>
 
-        {filteredTransactions.length === 0 ? (
+        {sortedTransactions.length === 0 ? (
           <div className="py-16 text-center text-[#94A3B8]">
             <Filter className="w-10 h-10 mx-auto mb-2 text-slate-600" />
             <p className="text-base font-semibold text-[#F8FAFC]">Nenhuma transação encontrada</p>
@@ -422,21 +540,178 @@ export default function Transactions() {
                     <Checkbox
                       aria-label="Selecionar todas as transações"
                       checked={
-                        selectedIds.length === filteredTransactions.length &&
-                        filteredTransactions.length > 0
+                        selectedIds.length === sortedTransactions.length &&
+                        sortedTransactions.length > 0
                       }
                       onCheckedChange={(c) => handleSelectAll(Boolean(c))}
                     />
                   </th>
-                  <th className="p-3.5 w-24">Data</th>
-                  <th className="p-3.5">Descrição</th>
-                  <th className="p-3.5 w-44">Categoria</th>
-                  <th className="p-3.5 w-32 text-right">Valor</th>
+
+                  {/* Column: Data */}
+                  <th
+                    className="p-1 w-28"
+                    aria-sort={
+                      sortColumn === 'date'
+                        ? sortDirection === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSortToggle('date')}
+                      className={`min-h-[44px] w-full px-2.5 py-2 flex items-center gap-1.5 font-semibold transition-colors rounded-lg text-left ${
+                        sortColumn === 'date'
+                          ? 'text-blue-300 bg-blue-500/10'
+                          : 'hover:text-[#F8FAFC] hover:bg-[#202A40]/60'
+                      }`}
+                      aria-label={`Ordenar por data. Estado atual: ${
+                        sortColumn === 'date'
+                          ? sortDirection === 'asc'
+                            ? 'ascendente'
+                            : 'descendente'
+                          : 'padrão'
+                      }. Clique para alternar.`}
+                    >
+                      <span>Data</span>
+                      {sortColumn === 'date' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-[#94A3B8]/60 shrink-0" />
+                      )}
+                    </button>
+                  </th>
+
+                  {/* Column: Descrição */}
+                  <th
+                    className="p-1"
+                    aria-sort={
+                      sortColumn === 'description'
+                        ? sortDirection === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSortToggle('description')}
+                      className={`min-h-[44px] w-full px-2.5 py-2 flex items-center gap-1.5 font-semibold transition-colors rounded-lg text-left ${
+                        sortColumn === 'description'
+                          ? 'text-blue-300 bg-blue-500/10'
+                          : 'hover:text-[#F8FAFC] hover:bg-[#202A40]/60'
+                      }`}
+                      aria-label={`Ordenar por descrição. Estado atual: ${
+                        sortColumn === 'description'
+                          ? sortDirection === 'asc'
+                            ? 'ascendente'
+                            : 'descendente'
+                          : 'padrão'
+                      }. Clique para alternar.`}
+                    >
+                      <span>Descrição</span>
+                      {sortColumn === 'description' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-[#94A3B8]/60 shrink-0" />
+                      )}
+                    </button>
+                  </th>
+
+                  {/* Column: Categoria */}
+                  <th
+                    className="p-1 w-48"
+                    aria-sort={
+                      sortColumn === 'category'
+                        ? sortDirection === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSortToggle('category')}
+                      className={`min-h-[44px] w-full px-2.5 py-2 flex items-center gap-1.5 font-semibold transition-colors rounded-lg text-left ${
+                        sortColumn === 'category'
+                          ? 'text-blue-300 bg-blue-500/10'
+                          : 'hover:text-[#F8FAFC] hover:bg-[#202A40]/60'
+                      }`}
+                      aria-label={`Ordenar por categoria. Estado atual: ${
+                        sortColumn === 'category'
+                          ? sortDirection === 'asc'
+                            ? 'ascendente'
+                            : 'descendente'
+                          : 'padrão'
+                      }. Clique para alternar.`}
+                    >
+                      <span>Categoria</span>
+                      {sortColumn === 'category' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-[#94A3B8]/60 shrink-0" />
+                      )}
+                    </button>
+                  </th>
+
+                  {/* Column: Valor */}
+                  <th
+                    className="p-1 w-36 text-right"
+                    aria-sort={
+                      sortColumn === 'amount'
+                        ? sortDirection === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSortToggle('amount')}
+                      className={`min-h-[44px] w-full px-2.5 py-2 flex items-center justify-end gap-1.5 font-semibold transition-colors rounded-lg ${
+                        sortColumn === 'amount'
+                          ? 'text-blue-300 bg-blue-500/10'
+                          : 'hover:text-[#F8FAFC] hover:bg-[#202A40]/60'
+                      }`}
+                      aria-label={`Ordenar por valor financeiro. Estado atual: ${
+                        sortColumn === 'amount'
+                          ? sortDirection === 'asc'
+                            ? 'ascendente'
+                            : 'descendente'
+                          : 'padrão'
+                      }. Clique para alternar.`}
+                    >
+                      <span>Valor</span>
+                      {sortColumn === 'amount' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-[#94A3B8]/60 shrink-0" />
+                      )}
+                    </button>
+                  </th>
+
                   <th className="p-3.5 w-28 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {filteredTransactions.map((tx) => {
+                {sortedTransactions.map((tx) => {
                   const cat = tx.categoryId ? categoryMap.get(tx.categoryId) : null
                   const suggestedCat = tx.suggestedCategoryId
                     ? categoryMap.get(tx.suggestedCategoryId)
