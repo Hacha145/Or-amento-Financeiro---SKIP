@@ -332,8 +332,9 @@ export default function Hierarchy() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
+                                className="min-h-[44px] min-w-[44px] h-11 w-11 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                                 onClick={() => startEdit(it)}
+                                aria-label={`Editar item ${it.name}`}
                                 title="Editar"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
@@ -341,8 +342,9 @@ export default function Hierarchy() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
+                                className="min-h-[44px] min-w-[44px] h-11 w-11 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
                                 onClick={() => remove(it.id)}
+                                aria-label={`Excluir item ${it.name}`}
                                 title="Excluir"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />

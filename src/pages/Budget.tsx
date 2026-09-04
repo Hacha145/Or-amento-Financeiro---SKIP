@@ -337,16 +337,19 @@ export default function Budget() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs h-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
+                    className="text-xs min-h-[44px] px-3 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg cursor-pointer"
                     onClick={() => handleOpenModal(b.categoryId, b.monthlyLimit)}
+                    aria-label={`Editar meta da categoria ${cat?.name || 'desconhecida'}`}
                   >
                     Editar meta
                   </Button>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="text-xs h-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
+                    size="icon"
+                    className="min-h-[44px] min-w-[44px] h-11 w-11 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg cursor-pointer"
                     onClick={() => handleRemove(b.categoryId)}
+                    aria-label={`Excluir meta da categoria ${cat?.name || 'desconhecida'}`}
+                    title="Excluir meta"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>

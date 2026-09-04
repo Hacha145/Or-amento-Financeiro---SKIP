@@ -969,8 +969,9 @@ export default function ImportBank() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-[#94A3B8] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"
+                            className="min-h-[44px] min-w-[44px] h-11 w-11 text-[#94A3B8] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"
                             onClick={() => handleRemovePreviewItem(item.id)}
+                            aria-label={`Remover item ${item.description} da prévia`}
                             title="Remover da prévia"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

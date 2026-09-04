@@ -240,9 +240,9 @@ export default function Regras() {
             Regras de Classificação
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-            Regras baseadas em <strong className="text-white">tokens</strong> (palavras
-            completas). "OVOS" nunca casa com "NOVOS" — a correspondência é por token, não por
-            substring. Prioridade menor = avaliada primeiro.
+            Regras baseadas em <strong className="text-white">tokens</strong> (palavras completas).
+            "OVOS" nunca casa com "NOVOS" — a correspondência é por token, não por substring.
+            Prioridade menor = avaliada primeiro.
           </p>
         </div>
         <Button
@@ -441,18 +441,22 @@ export default function Regras() {
                     <div className="sm:col-span-2 flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
+                        size="icon"
+                        className="min-h-[44px] min-w-[44px] h-11 w-11 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                         onClick={() => handleViewAffected(rule)}
+                        aria-label={`Ver transações afetadas pela regra ${rule.name}`}
                         title="Ver transações afetadas"
                       >
                         <ListChecks className="w-3.5 h-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
+                        size="icon"
+                        className="min-h-[44px] min-w-[44px] h-11 w-11 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                         onClick={() => handleToggleActive(rule)}
+                        aria-label={
+                          isActive ? `Desativar regra ${rule.name}` : `Ativar regra ${rule.name}`
+                        }
                         title={isActive ? 'Desativar' : 'Ativar'}
                       >
                         <Power
@@ -461,17 +465,21 @@ export default function Regras() {
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
+                        size="icon"
+                        className="min-h-[44px] min-w-[44px] h-11 w-11 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                         onClick={() => handleOpenEdit(rule)}
+                        aria-label={`Editar regra ${rule.name}`}
+                        title="Editar"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
+                        size="icon"
+                        className="min-h-[44px] min-w-[44px] h-11 w-11 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
                         onClick={() => handleDelete(rule)}
+                        aria-label={`Excluir regra ${rule.name}`}
+                        title="Excluir"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>

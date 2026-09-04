@@ -416,6 +416,7 @@ export default function Transactions() {
                 <tr>
                   <th className="p-3.5 w-10 text-center">
                     <Checkbox
+                      aria-label="Selecionar todas as transações"
                       checked={
                         selectedIds.length === filteredTransactions.length &&
                         filteredTransactions.length > 0
@@ -453,6 +454,7 @@ export default function Transactions() {
                       {/* Checkbox */}
                       <td className="p-3.5 text-center">
                         <Checkbox
+                          aria-label={`Selecionar transação: ${tx.description}`}
                           checked={isSelected}
                           onCheckedChange={(c) => handleSelectOne(tx.id, Boolean(c))}
                         />
@@ -538,10 +540,11 @@ export default function Transactions() {
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="h-6 w-6 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg"
+                                  className="min-h-[44px] min-w-[44px] h-11 w-11 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg"
                                   onClick={() =>
                                     handleConfirmOne(tx, tx.suggestedCategoryId || undefined)
                                   }
+                                  aria-label={`Confirmar sugestão de categoria para ${tx.description}`}
                                   title="Confirmar esta sugestão"
                                 >
                                   <CheckCircle2 className="w-4 h-4" />
@@ -580,8 +583,9 @@ export default function Transactions() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8 text-emerald-400 hover:bg-emerald-500/10 rounded-lg"
+                              className="min-h-[44px] min-w-[44px] h-11 w-11 text-emerald-400 hover:bg-emerald-500/10 rounded-lg"
                               onClick={() => openEditModal(tx)}
+                              aria-label={`Classificar e confirmar ${tx.description}`}
                               title="Classificar e confirmar"
                             >
                               <CheckCircle2 className="w-4 h-4" />
@@ -590,8 +594,9 @@ export default function Transactions() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
+                            className="min-h-[44px] min-w-[44px] h-11 w-11 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                             onClick={() => openEditModal(tx)}
+                            aria-label={`Editar lançamento ${tx.description}`}
                             title="Editar lançamento"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -599,8 +604,9 @@ export default function Transactions() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
+                            className="min-h-[44px] min-w-[44px] h-11 w-11 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
                             onClick={() => deleteTransaction(tx.id)}
+                            aria-label={`Excluir lançamento ${tx.description}`}
                             title="Excluir"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

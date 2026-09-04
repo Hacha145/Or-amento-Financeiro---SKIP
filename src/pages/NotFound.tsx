@@ -15,7 +15,9 @@ const NotFound = () => {
         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#1E40AF]/20 text-[#3B82F6] flex items-center justify-center font-bold text-2xl border border-[#1E40AF]/30 font-['Lexend']">
           404
         </div>
-        <h1 className="text-2xl font-bold mb-2 text-white font-['Lexend']">Página não encontrada</h1>
+        <h1 className="text-2xl font-bold mb-2 text-white font-['Lexend']">
+          Página não encontrada
+        </h1>
         <p className="text-sm text-slate-400 mb-6">
           A rota que você tentou acessar não existe ou foi movida.
         </p>
@@ -27,6 +29,7 @@ const NotFound = () => {
         </a>
       </div>
     </div>
-  )}
+  )
+}
 
 export default NotFound

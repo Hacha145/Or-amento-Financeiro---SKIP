@@ -17,7 +17,12 @@ export function useScrollReveal<T extends HTMLElement = HTMLDivElement>() {
     if (!el) return
 
     // If reduced motion is preferred, ensure visible immediately and exit
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      el.classList.remove('reveal-init')
       el.classList.add('reveal-visible')
       return
     }

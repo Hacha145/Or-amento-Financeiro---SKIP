@@ -70,7 +70,7 @@ export function MonthSelector({ className, onChange }: MonthSelectorProps) {
         variant="ghost"
         size="icon"
         onClick={() => changeMonth(-1)}
-        className="h-8 w-8 text-slate-300 hover:text-white hover:bg-[#202A40] rounded-lg cursor-pointer focus:ring-1 focus:ring-white"
+        className="min-h-[44px] min-w-[44px] h-11 w-11 text-slate-300 hover:text-white hover:bg-[#202A40] rounded-lg cursor-pointer focus:ring-1 focus:ring-white"
         aria-label="Mês anterior"
         title="Mês anterior"
       >
@@ -80,18 +80,20 @@ export function MonthSelector({ className, onChange }: MonthSelectorProps) {
       <button
         type="button"
         onClick={handleResetToCurrent}
-        className="px-3 py-1 flex items-center gap-2 text-xs font-semibold text-white hover:text-blue-300 rounded-lg hover:bg-[#202A40] transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-white"
+        className="px-2.5 sm:px-3 min-h-[44px] flex items-center gap-2 text-xs font-semibold text-white hover:text-blue-300 rounded-lg hover:bg-[#202A40] transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-white"
         title="Clique para voltar ao mês atual"
       >
-        <Calendar className="w-3.5 h-3.5 text-blue-400" />
-        <span className="capitalize whitespace-nowrap font-['Lexend']">{currentLabel}</span>
+        <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+        <span className="capitalize whitespace-nowrap font-['Lexend'] text-[11px] sm:text-xs">
+          {currentLabel}
+        </span>
       </button>
 
       <Button
         variant="ghost"
         size="icon"
         onClick={() => changeMonth(1)}
-        className="h-8 w-8 text-slate-300 hover:text-white hover:bg-[#202A40] rounded-lg cursor-pointer focus:ring-1 focus:ring-white"
+        className="min-h-[44px] min-w-[44px] h-11 w-11 text-slate-300 hover:text-white hover:bg-[#202A40] rounded-lg cursor-pointer focus:ring-1 focus:ring-white"
         aria-label="Próximo mês"
         title="Próximo mês"
       >

@@ -221,17 +221,20 @@ export default function Categories() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 text-xs text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
+                  className="min-h-[44px] px-3 text-xs text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg cursor-pointer"
                   onClick={() => handleOpenEdit(cat)}
+                  aria-label={`Editar categoria ${cat.name}`}
                 >
                   <Edit2 className="w-3.5 h-3.5 mr-1" />
                   Editar
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
+                  size="icon"
+                  className="min-h-[44px] min-w-[44px] h-11 w-11 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg cursor-pointer"
                   onClick={() => handleDelete(cat)}
+                  aria-label={`Excluir categoria ${cat.name}`}
+                  title="Excluir"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>

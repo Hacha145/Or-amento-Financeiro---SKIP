@@ -331,7 +331,10 @@ export default function Index() {
           {viewMode === 'monthly' ? (
             <MonthSelector />
           ) : (
-            <YearSelector currentYear={selectedYear} onChangeYear={(y: number) => setSelectedYear(y)} />
+            <YearSelector
+              currentYear={selectedYear}
+              onChangeYear={(y: number) => setSelectedYear(y)}
+            />
           )}
         </div>
       </div>
@@ -429,7 +432,7 @@ export default function Index() {
         </CardHeader>
         <CardContent className="p-5 pt-4 space-y-4">
           {/* Class grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {/* Receita */}
             <ConsolidationTile
               label="Receitas"

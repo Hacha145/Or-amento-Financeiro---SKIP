@@ -277,10 +277,10 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </header>
 
-          {/* MAIN CONTENT AREA */}
+          {/* MAIN CONTENT AREA (pb-28 on mobile to avoid bottom nav overlay + safe area) */}
           <main
             id="main-content"
-            className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24 md:pb-12"
+            className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-28 md:pb-12 focus:outline-none"
             tabIndex={-1}
           >
             {children ?? <Outlet />}
@@ -376,9 +376,9 @@ export function Layout({ children }: LayoutProps) {
         </div>
       )}
 
-      {/* MOBILE BOTTOM NAVIGATION (SKILL Rule 9: <= 5 items, touch target >= 44x44px) */}
+      {/* MOBILE BOTTOM NAVIGATION (SKILL Rule 9: <= 5 items, touch target >= 44x44px, safe area bottom support) */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-30 h-16 glass-header border-t border-white/10 flex items-center justify-around px-2"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 h-16 pb-[env(safe-area-inset-bottom,0px)] glass-header border-t border-white/10 flex items-center justify-around px-1"
         aria-label="Navegação móvel inferior"
       >
         {mobileBottomNav.map((item) => {
@@ -392,7 +392,7 @@ export function Layout({ children }: LayoutProps) {
                 key="menu-trigger"
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
-                className="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 px-2 text-[10px] font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="flex flex-col items-center justify-center min-w-[48px] min-h-[48px] py-1 px-1 text-[10px] font-medium text-slate-400 hover:text-white transition-colors cursor-pointer focus:outline-none focus:text-white"
                 aria-label="Mais opções de menu"
               >
                 <Icon className="w-5 h-5 mb-0.5" />
@@ -405,8 +405,9 @@ export function Layout({ children }: LayoutProps) {
             <NavLink
               key={item.href}
               to={item.href}
+              aria-label={item.name}
               className={cn(
-                'relative flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 px-2 text-[10px] font-medium transition-colors cursor-pointer',
+                'relative flex flex-col items-center justify-center min-w-[48px] min-h-[48px] py-1 px-1 text-[10px] font-medium transition-colors cursor-pointer focus:outline-none focus:text-[#3B82F6]',
                 active ? 'text-[#3B82F6] font-semibold' : 'text-slate-400 hover:text-slate-200',
               )}
             >

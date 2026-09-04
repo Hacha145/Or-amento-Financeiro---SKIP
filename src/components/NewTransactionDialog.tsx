@@ -280,13 +280,13 @@ export const NewTransactionDialog: React.FC<NewTransactionDialogProps> = ({
             <Label className="mb-1.5 block text-xs font-semibold text-[#B6C2D4] uppercase tracking-wider">
               Tipo
             </Label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {TYPE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setType(opt.value)}
-                  className={`flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-medium transition-all border ${
+                  className={`flex items-center justify-center gap-1.5 min-h-[44px] py-2 px-1.5 rounded-xl text-xs font-medium transition-all border cursor-pointer ${
                     type === opt.value
                       ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30 font-semibold'
                       : 'bg-[#101A34] text-[#B6C2D4] border-white/5 hover:bg-[#202A40] hover:text-[#F8FAFC]'
