@@ -277,24 +277,24 @@ export default function Index() {
   return (
     <div className="space-y-6 animate-fade-in text-[#F8FAFC]">
       {/* Top Header: Title, Toggle Mode & Selector */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-['Lexend']">
               Painel Financeiro
             </h1>
             <Badge
               variant="outline"
               className={
                 viewMode === 'annual'
-                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  ? 'bg-[#1E40AF]/20 text-blue-300 border-[#1E40AF]/40 text-xs'
+                  : 'bg-[#059669]/20 text-emerald-300 border-[#059669]/40 text-xs'
               }
             >
               {viewMode === 'annual' ? `Visão Anual (${selectedYear})` : 'Visão Mensal'}
             </Badge>
           </div>
-          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
+          <p className="text-xs sm:text-sm text-slate-400">
             {viewMode === 'annual'
               ? `Demonstrativo consolidado e evolução de receitas e despesas em ${selectedYear}`
               : 'Uma leitura clara do seu mês, sem alterar os cálculos existentes.'}
@@ -312,14 +312,14 @@ export default function Index() {
             <TabsList className="bg-[#192134] border border-white/10 p-1 h-10 rounded-xl">
               <TabsTrigger
                 value="monthly"
-                className="text-xs font-semibold px-3 py-1.5 text-[#B6C2D4] rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+                className="text-xs font-semibold px-3 py-1.5 text-slate-300 rounded-lg data-[state=active]:bg-[#1E40AF] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all cursor-pointer"
               >
                 <Calendar className="w-3.5 h-3.5 mr-1.5 inline text-blue-300" />
                 Mensal
               </TabsTrigger>
               <TabsTrigger
                 value="annual"
-                className="text-xs font-semibold px-3 py-1.5 text-[#B6C2D4] rounded-lg data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+                className="text-xs font-semibold px-3 py-1.5 text-slate-300 rounded-lg data-[state=active]:bg-[#1E40AF] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all cursor-pointer"
               >
                 <BarChart3 className="w-3.5 h-3.5 mr-1.5 inline text-blue-300" />
                 Anual
@@ -331,7 +331,7 @@ export default function Index() {
           {viewMode === 'monthly' ? (
             <MonthSelector />
           ) : (
-            <YearSelector currentYear={selectedYear} onChangeYear={(y) => setSelectedYear(y)} />
+            <YearSelector currentYear={selectedYear} onChangeYear={(y: number) => setSelectedYear(y)} />
           )}
         </div>
       </div>
@@ -1550,17 +1550,17 @@ function ConsolidationTile({
   hint?: string
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-[#101A34] p-3 shadow-xs hover:border-white/20 transition-colors">
+    <div className="rounded-xl border border-white/10 bg-[#101A34] p-3.5 shadow-xs card-hover-lift">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[11px] uppercase tracking-wider text-[#94A3B8] font-medium">
+        <span className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
           {label}
         </span>
         {icon && <span style={{ color }}>{icon}</span>}
       </div>
-      <div className="text-base font-bold tracking-tight text-[#F8FAFC] tabular-nums">
+      <div className="text-base font-bold tracking-tight text-white tabular-nums font-['Lexend']">
         {formatCurrencyBRL(value)}
       </div>
-      {hint && <p className="text-[10px] text-[#94A3B8] mt-0.5 truncate">{hint}</p>}
+      {hint && <p className="text-[10px] text-slate-400 mt-0.5 truncate">{hint}</p>}
     </div>
   )
 }

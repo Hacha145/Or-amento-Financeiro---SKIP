@@ -233,21 +233,21 @@ export default function Regras() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in text-[#F8FAFC]">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC] flex items-center gap-2.5">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2.5 font-['Lexend']">
             <ListChecks className="w-6 h-6 text-blue-400" />
             Regras de Classificação
           </h1>
-          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1 max-w-2xl">
-            Regras baseadas em <strong className="text-[#F8FAFC]">tokens</strong> (palavras
+          <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
+            Regras baseadas em <strong className="text-white">tokens</strong> (palavras
             completas). "OVOS" nunca casa com "NOVOS" — a correspondência é por token, não por
             substring. Prioridade menor = avaliada primeiro.
           </p>
         </div>
         <Button
           onClick={handleOpenAdd}
-          className="bg-[#047857] hover:bg-[#059669] text-white text-xs gap-1.5 shadow-sm rounded-xl h-10 px-4 font-medium"
+          className="bg-[#059669] hover:bg-[#059669]/90 text-white text-xs gap-1.5 shadow-sm rounded-lg h-9 px-4 font-semibold cursor-pointer transition-transform hover:-translate-y-0.5 focus:ring-2 focus:ring-white"
         >
           <Plus className="w-4 h-4" />
           Nova Regra
@@ -691,7 +691,7 @@ export default function Regras() {
               <Button
                 type="submit"
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 text-xs font-semibold"
+                className="bg-[#059669] hover:bg-[#059669]/90 text-white rounded-lg h-10 px-4 text-xs font-semibold cursor-pointer transition-transform hover:-translate-y-0.5"
               >
                 Salvar Regra
               </Button>

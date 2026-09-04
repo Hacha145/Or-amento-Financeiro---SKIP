@@ -549,11 +549,11 @@ export default function ImportBank() {
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto text-[#F8FAFC]">
       {/* Title */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
+      <div className="pb-2 border-b border-white/5 space-y-1">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-['Lexend']">
           Importar Extratos Bancários
         </h1>
-        <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
+        <p className="text-xs sm:text-sm text-slate-400">
           Selecione um ou múltiplos arquivos (OFX, CSV, XLSX) de uma só vez. O motor aprende regras
           exatas e detecta automaticamente pagamentos de fatura de cartão.
         </p>

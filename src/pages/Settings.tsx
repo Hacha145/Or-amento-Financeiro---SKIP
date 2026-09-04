@@ -273,11 +273,11 @@ export default function Settings() {
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto text-[#F8FAFC]">
       {/* Title */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
+      <div className="pb-2 border-b border-white/5 space-y-1">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-['Lexend']">
           Configurações &amp; Backup
         </h1>
-        <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
+        <p className="text-xs sm:text-sm text-slate-400">
           Gerencie o formato da sua planilha modelo, regras de contabilidade e cópias de segurança
         </p>
       </div>

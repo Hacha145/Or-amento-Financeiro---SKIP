@@ -435,13 +435,13 @@ export default function Welcome() {
       {step === 'welcome' && (
         <Card className="w-full max-w-[640px] shadow-2xl border-white/10 bg-[#192134] rounded-2xl">
           <CardHeader className="text-center pb-6 border-b border-white/5">
-            <div className="mx-auto w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-4 shadow-sm">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] text-white flex items-center justify-center mb-4 shadow-md shadow-[#1E40AF]/25">
               <Sparkles className="w-7 h-7" />
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight text-[#F8FAFC]">
+            <CardTitle className="text-2xl font-bold tracking-tight text-white font-['Lexend']">
               Bem-vindo ao Orçamento Pessoal
             </CardTitle>
-            <CardDescription className="text-base text-[#B6C2D4] mt-2 max-w-md mx-auto">
+            <CardDescription className="text-base text-slate-400 mt-2 max-w-md mx-auto">
               Controle financeiro inteligente, offline e adaptado ao formato da sua planilha.
             </CardDescription>
           </CardHeader>

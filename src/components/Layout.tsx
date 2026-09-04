@@ -1,317 +1,431 @@
 import React, { useState } from 'react'
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
-  ArrowLeftRight,
-  UploadCloud,
-  Target,
+  Receipt,
+  Upload,
+  PieChart,
   Tag,
+  Layers,
+  ListChecks,
   Settings,
   Plus,
+  HelpCircle,
   Menu,
   X,
   Wallet,
   ShieldCheck,
-  AlertCircle,
-  Layers,
-  CalendarClock,
-  ListChecks,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { NewTransactionDialog } from '@/components/NewTransactionDialog'
 import { useFinance } from '@/context/FinanceContext'
-import { NewTransactionDialog } from './NewTransactionDialog'
+import { cn } from '@/lib/utils'
 
-const navItems = [
-  { to: '/', label: 'Início', icon: LayoutDashboard },
-  { to: '/transacoes', label: 'Transações', icon: ArrowLeftRight, badgeKey: 'pending' },
-  { to: '/importar', label: 'Importar', icon: UploadCloud },
-  { to: '/orcamento', label: 'Orçamento', icon: Target },
-  { to: '/categorias', label: 'Categorias', icon: Tag },
-  { to: '/hierarquia', label: 'Hierarquia', icon: Layers },
-  { to: '/regras', label: 'Regras', icon: ListChecks },
-  { to: '/configuracoes', label: 'Configurações', icon: Settings },
-]
+import { Outlet } from 'react-router-dom'
 
-/** Format an ISO date (YYYY-MM-DD) as DD/MM/YYYY (pt-BR). */
-function formatBRDate(iso?: string | null): string | null {
-  if (!iso) return null
-  const [y, m, d] = iso.split('-')
-  if (!y || !m || !d) return null
-  return `${d}/${m}/${y}`
+interface LayoutProps {
+  children?: React.ReactNode
 }
 
-export default function Layout() {
-  const { monthlyStats, settings, dataUpdatedAt } = useFinance()
-  const location = useLocation()
-  const navigate = useNavigate()
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
-  const [newTxOpen, setNewTxOpen] = useState(false)
+interface NavItem {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  badge?: number | string
+  badgeVariant?: 'default' | 'destructive' | 'outline' | 'secondary'
+}
 
-  // If setup not completed and not on onboarding, we handle via onboarding route or let user explore
-  const pendingCount = monthlyStats.pendingReviewCount
-  const updatedAtBR = formatBRDate(dataUpdatedAt)
+export function Layout({ children }: LayoutProps) {
+  const location = useLocation()
+  const { monthlyStats, currentMonth } = useFinance()
+  const reviewQueueCount = monthlyStats?.pendingReviewCount ?? 0
+  const [isNewTxOpen, setIsNewTxOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  // Primary navigation (desktop sidebar + mobile drawer)
+  const navItems: NavItem[] = [
+    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    {
+      name: 'Transações',
+      href: '/transacoes',
+      icon: Receipt,
+      badge: reviewQueueCount > 0 ? `${reviewQueueCount} rev` : undefined,
+      badgeVariant: reviewQueueCount > 0 ? 'destructive' : undefined,
+    },
+    { name: 'Importar', href: '/importar', icon: Upload },
+    { name: 'Orçamento', href: '/orcamento', icon: PieChart },
+    { name: 'Categorias', href: '/categorias', icon: Tag },
+    { name: 'Hierarquia', href: '/hierarquia', icon: Layers },
+    { name: 'Regras', href: '/regras', icon: ListChecks },
+    { name: 'Configurações', href: '/configuracoes', icon: Settings },
+  ]
+
+  // SKILL rule 9: Mobile bottom nav MUST have <= 5 items
+  const mobileBottomNav: NavItem[] = [
+    { name: 'Início', href: '/', icon: LayoutDashboard },
+    {
+      name: 'Transações',
+      href: '/transacoes',
+      icon: Receipt,
+      badge: reviewQueueCount > 0 ? reviewQueueCount : undefined,
+    },
+    { name: 'Importar', href: '/importar', icon: Upload },
+    { name: 'Orçamento', href: '/orcamento', icon: PieChart },
+    { name: 'Menu', href: '#menu', icon: Menu },
+  ]
+
+  const formatMonthBadge = (isoMonth: string) => {
+    if (!isoMonth) return ''
+    const [y, m] = isoMonth.split('-')
+    const months = [
+      'Jan',
+      'Fev',
+      'Mar',
+      'Abr',
+      'Mai',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Set',
+      'Out',
+      'Nov',
+      'Dez',
+    ]
+    const idx = parseInt(m, 10) - 1
+    return `${months[idx] || m} ${y}`
+  }
+
+  const isCurrentPage = (href: string) => {
+    if (href === '/') return location.pathname === '/'
+    return location.pathname.startsWith(href)
+  }
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex flex-col lg:flex-row text-[#F8FAFC] font-sans selection:bg-blue-600 selection:text-white">
-      {/* Desktop Sidebar (≥1024px) */}
-      <aside className="hidden lg:flex flex-col w-[260px] bg-[#09101F] border-r border-white/10 p-4 shrink-0 justify-between sticky top-0 h-screen z-30">
-        <div>
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3 px-2 py-3 mb-5">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/25 text-white">
-              <Wallet className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <div>
-              <h1 className="font-bold text-base leading-tight tracking-tight text-[#F8FAFC]">
-                Orçamento Pessoal
-              </h1>
-              <p className="text-[11px] text-emerald-400 font-semibold tracking-wider uppercase mt-0.5">
-                Controle Offline
-              </p>
-            </div>
+    <div className="min-h-screen bg-[#0F172A] text-white flex flex-col antialiased selection:bg-[#1E40AF] selection:text-white">
+      {/* SKIP NAVIGATION LINK (Accessibility Priority 1) */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 z-50 bg-[#1E40AF] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg focus:outline-none focus:ring-2 focus:ring-white"
+      >
+        Pular para o conteúdo principal
+      </a>
+
+      {/* DESKTOP APP SHELL (Sidebar + Main Content) */}
+      <div className="flex-1 flex w-full">
+        {/* DESKTOP SIDEBAR */}
+        <aside
+          className="hidden md:flex w-64 flex-col fixed inset-y-0 left-0 z-30 glass-sidebar"
+          aria-label="Navegação lateral"
+        >
+          {/* Brand header */}
+          <div className="h-16 flex items-center justify-between px-6 border-b border-white/5">
+            <NavLink
+              to="/"
+              className="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-[#1E40AF] rounded-lg p-1"
+              aria-label="Orçamento Pessoal - Ir para Dashboard"
+            >
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] flex items-center justify-center shadow-md shadow-[#1E40AF]/25 group-hover:scale-105 transition-transform">
+                <Wallet className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-['Lexend'] font-bold text-sm tracking-tight text-white leading-tight">
+                  Orçamento Pessoal
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">Finanças offline</span>
+              </div>
+            </NavLink>
           </div>
 
-          {/* "Dados atualizados até" indicator */}
-          {updatedAtBR && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="mb-4 flex items-center gap-2 text-[11px] text-[#B6C2D4] bg-[#192134] border border-white/5 rounded-lg px-2.5 py-1.5 cursor-help">
-                    <CalendarClock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span className="truncate">
-                      Dados atualizados até:{' '}
-                      <strong className="text-[#F8FAFC] font-semibold">{updatedAtBR}</strong>
-                    </span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent className="bg-[#192134] text-[#F8FAFC] border border-white/10">
-                  <p>Data da transação mais recente registrada.</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          {/* Quick Action: New Transaction CTA */}
+          <div className="p-4 pb-2">
+            <Button
+              onClick={() => setIsNewTxOpen(true)}
+              className="w-full bg-[#059669] hover:bg-[#059669]/90 text-white font-semibold text-xs h-11 rounded-lg gap-2 shadow-sm transition-all hover:-translate-y-0.5 cursor-pointer focus:ring-2 focus:ring-white focus:outline-none"
+              aria-label="Novo Lançamento"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Lançamento</span>
+            </Button>
+          </div>
 
-          {/* New Transaction Button */}
-          <Button
-            onClick={() => setNewTxOpen(true)}
-            className="w-full h-11 bg-[#047857] hover:bg-[#059669] text-white font-medium rounded-xl shadow-sm mb-5 flex items-center justify-center gap-2 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-400"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Novo Lançamento</span>
-          </Button>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1" aria-label="Navegação principal">
+          {/* Nav items list */}
+          <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto" aria-label="Menu principal">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive =
-                item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to)
+              const active = isCurrentPage(item.href)
 
               return (
                 <NavLink
-                  key={item.to}
-                  to={item.to}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-blue-600/20 text-[#93C5FD] font-semibold border border-blue-500/30'
-                      : 'text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40]/70'
-                  }`}
+                  key={item.href}
+                  to={item.href}
+                  className={cn(
+                    'flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-medium transition-all group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1E40AF]',
+                    active
+                      ? 'bg-[#1E40AF]/20 text-white font-semibold border border-[#1E40AF]/40 shadow-xs'
+                      : 'text-slate-300 hover:text-white hover:bg-[#192134]/70 border border-transparent',
+                  )}
                 >
-                  <div className="flex items-center gap-3">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-[#94A3B8]'}`} />
-                    <span>{item.label}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon
+                      className={cn(
+                        'w-4 h-4 shrink-0 transition-colors',
+                        active ? 'text-[#3B82F6]' : 'text-slate-400 group-hover:text-slate-200',
+                      )}
+                    />
+                    <span className="truncate">{item.name}</span>
                   </div>
 
-                  {item.badgeKey === 'pending' && pendingCount > 0 && (
+                  {item.badge && (
                     <Badge
-                      variant="outline"
-                      className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[10px] px-2 py-0.5 h-5 rounded-full font-bold"
+                      variant={item.badgeVariant || 'outline'}
+                      className={cn(
+                        'text-[10px] px-1.5 py-0 h-5 font-semibold shrink-0 ml-2',
+                        item.badgeVariant === 'destructive'
+                          ? 'bg-[#DC2626]/20 text-red-300 border-[#DC2626]/40'
+                          : 'bg-[#101A34] text-slate-300 border-white/10',
+                      )}
                     >
-                      {pendingCount}
+                      {item.badge}
                     </Badge>
                   )}
                 </NavLink>
               )
             })}
           </nav>
-        </div>
 
-        {/* Local Storage Privacy Reminder */}
-        <div className="bg-[#101A34] border border-white/5 p-3.5 rounded-xl">
-          <div className="flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-            <div className="text-xs">
-              <p className="font-semibold text-[#F8FAFC]">Dados seguros</p>
-              <p className="text-[#B6C2D4] text-[11px] leading-relaxed mt-0.5">
-                Seus dados ficam 100% gravados neste navegador.
-              </p>
+          {/* Footer of desktop sidebar */}
+          <div className="p-4 border-t border-white/5 space-y-2">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                Dados 100% locais
+              </span>
+              <span className="font-mono text-[10px] text-slate-400 bg-[#101A34] px-1.5 py-0.5 rounded border border-white/5">
+                {formatMonthBadge(currentMonth)}
+              </span>
+            </div>
+            <NavLink
+              to="/boas-vindas"
+              className="flex items-center gap-2 text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg hover:bg-[#192134] transition-colors cursor-pointer"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>Guia &amp; Template</span>
+            </NavLink>
+          </div>
+        </aside>
+
+        {/* MAIN COLUMN (Header + Page Content) */}
+        <div className="flex-1 flex flex-col md:pl-64 min-w-0">
+          {/* TOP HEADER (Sticky, functional glassmorphism) */}
+          <header className="sticky top-0 z-20 h-16 glass-header flex items-center justify-between px-4 sm:px-6">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Mobile menu hamburger button */}
               <button
                 type="button"
-                onClick={() => navigate('/configuracoes')}
-                className="text-[11px] text-blue-400 hover:text-blue-300 font-medium hover:underline mt-1.5 inline-block cursor-pointer"
-              >
-                Fazer backup &rarr;
-              </button>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Top Header for Mobile & Tablet (<1024px) */}
-      <header className="lg:hidden sticky top-0 z-40 bg-[#09101F]/95 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-2">
-          {/* Tablet Drawer Button */}
-          <Sheet open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-xl"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg text-slate-300 hover:text-white hover:bg-[#192134] focus:outline-none focus:ring-2 focus:ring-[#1E40AF] cursor-pointer"
                 aria-label="Abrir menu de navegação"
+                aria-expanded={mobileMenuOpen}
               >
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent
-              side="left"
-              className="w-[280px] p-4 flex flex-col justify-between bg-[#09101F] text-[#F8FAFC] border-r border-white/10"
-            >
-              <div>
-                <div className="flex items-center gap-3 px-2 py-3 mb-6 border-b border-white/10 pb-4">
-                  <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-600/30">
-                    <Wallet className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-base text-[#F8FAFC]">Orçamento Pessoal</h2>
-                    <p className="text-xs text-emerald-400 font-semibold tracking-wider uppercase">
-                      Controle Offline
-                    </p>
-                  </div>
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+
+              {/* Brand on mobile */}
+              <div className="flex items-center gap-2 md:hidden">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] flex items-center justify-center">
+                  <Wallet className="w-4 h-4 text-white" />
                 </div>
-
-                <nav className="space-y-1" aria-label="Navegação móvel">
-                  {navItems.map((item) => {
-                    const Icon = item.icon
-                    const isActive =
-                      item.to === '/'
-                        ? location.pathname === '/'
-                        : location.pathname.startsWith(item.to)
-                    return (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        aria-current={isActive ? 'page' : undefined}
-                        onClick={() => setMobileDrawerOpen(false)}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-blue-600/20 text-[#93C5FD] font-semibold border border-blue-500/30'
-                            : 'text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Icon
-                            className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-[#94A3B8]'}`}
-                          />
-                          <span>{item.label}</span>
-                        </div>
-                        {item.badgeKey === 'pending' && pendingCount > 0 && (
-                          <Badge
-                            variant="outline"
-                            className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-xs px-2 py-0.5 rounded-full font-bold"
-                          >
-                            {pendingCount}
-                          </Badge>
-                        )}
-                      </NavLink>
-                    )
-                  })}
-                </nav>
+                <span className="font-['Lexend'] font-bold text-sm tracking-tight text-white truncate">
+                  Orçamento Pessoal
+                </span>
               </div>
 
-              <div className="bg-[#101A34] p-3 rounded-xl border border-white/5 text-xs text-[#B6C2D4]">
-                <p className="font-medium text-[#F8FAFC] mb-1">Armazenamento Local</p>
-                Lembre-se de exportar seu backup periodicamente em Configurações.
+              {/* Desktop breadcrumb / current section */}
+              <div className="hidden md:flex items-center gap-2 text-xs text-slate-400">
+                <span>App</span>
+                <span>/</span>
+                <span className="text-white font-medium">
+                  {navItems.find((i) => isCurrentPage(i.href))?.name || 'Visão Geral'}
+                </span>
               </div>
-            </SheetContent>
-          </Sheet>
-
-          {/* Mobile Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-600/30">
-              <Wallet className="w-4 h-4" />
             </div>
-            <span className="font-bold text-sm tracking-tight text-[#F8FAFC]">
-              Orçamento Pessoal
-            </span>
+
+            {/* Header Right Actions */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {reviewQueueCount > 0 && (
+                <NavLink
+                  to="/transacoes?filtro=revisao"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#DC2626]/20 text-red-300 border border-[#DC2626]/30 hover:bg-[#DC2626]/30 transition-colors cursor-pointer"
+                  title="Transações que exigem revisão"
+                >
+                  <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                  <span>{reviewQueueCount} pendentes</span>
+                </NavLink>
+              )}
+
+              {/* Quick transaction button for tablet/mobile */}
+              <Button
+                size="sm"
+                onClick={() => setIsNewTxOpen(true)}
+                className="bg-[#059669] hover:bg-[#059669]/90 text-white font-semibold text-xs h-9 px-3 sm:px-4 rounded-lg gap-1.5 shadow-sm transition-transform hover:-translate-y-0.5 cursor-pointer focus:ring-2 focus:ring-white focus:outline-none"
+                aria-label="Adicionar lançamento"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Lançamento</span>
+              </Button>
+            </div>
+          </header>
+
+          {/* MAIN CONTENT AREA */}
+          <main
+            id="main-content"
+            className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24 md:pb-12"
+            tabIndex={-1}
+          >
+            {children ?? <Outlet />}
+          </main>
+        </div>
+      </div>
+
+      {/* MOBILE DRAWER / OVERLAY MENU */}
+      {mobileMenuOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 glass-modal-overlay flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu de navegação mobile"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            className="w-4/5 max-w-xs bg-[#0F172A] border-r border-white/10 h-full p-5 flex flex-col justify-between shadow-2xl overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1E40AF] to-[#3B82F6] flex items-center justify-center">
+                    <Wallet className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="font-['Lexend'] font-bold text-sm text-white">
+                    Orçamento Pessoal
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#192134] cursor-pointer"
+                  aria-label="Fechar menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <nav className="space-y-1">
+                {navItems.map((item) => {
+                  const Icon = item.icon
+                  const active = isCurrentPage(item.href)
+
+                  return (
+                    <NavLink
+                      key={item.href}
+                      to={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        'flex items-center justify-between px-3.5 py-3 rounded-lg text-sm font-medium transition-colors cursor-pointer',
+                        active
+                          ? 'bg-[#1E40AF]/20 text-white font-semibold border border-[#1E40AF]/40'
+                          : 'text-slate-300 hover:text-white hover:bg-[#192134]',
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon
+                          className={cn('w-4 h-4', active ? 'text-[#3B82F6]' : 'text-slate-400')}
+                        />
+                        <span>{item.name}</span>
+                      </div>
+                      {item.badge && (
+                        <Badge
+                          variant={item.badgeVariant || 'outline'}
+                          className="text-[10px] px-1.5 py-0 h-5"
+                        >
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </NavLink>
+                  )
+                })}
+              </nav>
+            </div>
+
+            <div className="pt-4 border-t border-white/10 text-xs text-slate-400 space-y-2">
+              <NavLink
+                to="/boas-vindas"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 text-slate-300 hover:text-white py-2"
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span>Boas-vindas &amp; Guia</span>
+              </NavLink>
+              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                Armazenamento 100% local no navegador
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Action Button */}
-        <Button
-          size="sm"
-          onClick={() => setNewTxOpen(true)}
-          className="bg-[#047857] hover:bg-[#059669] text-white text-xs h-9 px-3 gap-1.5 rounded-xl font-medium shadow-sm"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Lançamento</span>
-        </Button>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 pb-24 sm:pb-8 bg-[#0F172A]">
-        <div className="w-full max-w-[1360px] mx-auto p-4 sm:p-6 lg:p-8">
-          <Outlet />
-        </div>
-      </main>
-
-      {/* Mobile Bottom Navigation (<640px) */}
+      {/* MOBILE BOTTOM NAVIGATION (SKILL Rule 9: <= 5 items, touch target >= 44x44px) */}
       <nav
-        aria-label="Navegação inferior"
-        className="sm:hidden fixed bottom-0 left-0 right-0 bg-[#09101F]/95 backdrop-blur-md border-t border-white/10 z-40 px-2 py-1.5 flex items-center justify-around shadow-xl"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 h-16 glass-header border-t border-white/10 flex items-center justify-around px-2"
+        aria-label="Navegação móvel inferior"
       >
-        {[
-          { to: '/', label: 'Início', icon: LayoutDashboard },
-          { to: '/transacoes', label: 'Transações', icon: ArrowLeftRight, badge: pendingCount },
-          { to: '/importar', label: 'Importar', icon: UploadCloud },
-          { to: '/orcamento', label: 'Orçamento', icon: Target },
-          { to: '/configuracoes', label: 'Config', icon: Settings },
-        ].map((item) => {
+        {mobileBottomNav.map((item) => {
           const Icon = item.icon
-          const isActive =
-            item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to)
+          const isMenuTrigger = item.href === '#menu'
+          const active = !isMenuTrigger && isCurrentPage(item.href)
+
+          if (isMenuTrigger) {
+            return (
+              <button
+                key="menu-trigger"
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                className="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 px-2 text-[10px] font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
+                aria-label="Mais opções de menu"
+              >
+                <Icon className="w-5 h-5 mb-0.5" />
+                <span>{item.name}</span>
+              </button>
+            )
+          }
 
           return (
             <NavLink
-              key={item.to}
-              to={item.to}
-              aria-current={isActive ? 'page' : undefined}
-              className={`flex flex-col items-center justify-center min-h-[44px] min-w-[48px] py-1 px-2 rounded-lg relative text-[11px] font-medium transition-colors ${
-                isActive ? 'text-blue-400 font-bold' : 'text-[#94A3B8] hover:text-[#F8FAFC]'
-              }`}
+              key={item.href}
+              to={item.href}
+              className={cn(
+                'relative flex flex-col items-center justify-center min-w-[56px] min-h-[44px] py-1 px-2 text-[10px] font-medium transition-colors cursor-pointer',
+                active ? 'text-[#3B82F6] font-semibold' : 'text-slate-400 hover:text-slate-200',
+              )}
             >
-              <div className="relative">
-                <Icon
-                  className={`w-5 h-5 ${isActive ? 'text-blue-400 stroke-[2.2]' : 'text-[#94A3B8]'}`}
-                />
-                {item.badge && item.badge > 0 ? (
-                  <span className="absolute -top-1 -right-2 bg-amber-500 text-slate-950 rounded-full text-[9px] w-4 h-4 flex items-center justify-center font-bold">
-                    {item.badge}
-                  </span>
-                ) : null}
-              </div>
-              <span className="mt-0.5">{item.label}</span>
-              {isActive && <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-0.5" />}
+              <Icon className="w-5 h-5 mb-0.5" />
+              <span>{item.name}</span>
+              {item.badge !== undefined && (
+                <span className="absolute top-1 right-2 w-4 h-4 rounded-full bg-[#DC2626] text-white text-[9px] font-bold flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )}
             </NavLink>
           )
         })}
       </nav>
 
-      {/* New Transaction Global Modal */}
-      <NewTransactionDialog open={newTxOpen} onOpenChange={setNewTxOpen} />
+      {/* NEW TRANSACTION DIALOG (Global access) */}
+      <NewTransactionDialog open={isNewTxOpen} onOpenChange={setIsNewTxOpen} />
     </div>
   )
 }
+
+export default Layout

@@ -111,19 +111,19 @@ export default function Categories() {
   return (
     <div className="space-y-6 animate-fade-in text-[#F8FAFC]">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-['Lexend']">
             Categorias &amp; Classificação
           </h1>
-          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
+          <p className="text-xs sm:text-sm text-slate-400">
             Gerencie os grupos de despesas/receitas e visualize as regras exatas aprendidas
           </p>
         </div>
 
         <Button
           onClick={handleOpenAdd}
-          className="bg-[#047857] hover:bg-[#059669] text-white text-xs gap-1.5 shadow-sm rounded-xl h-10 px-4 font-medium"
+          className="bg-[#059669] hover:bg-[#059669]/90 text-white text-xs gap-1.5 shadow-sm rounded-lg h-9 px-4 font-semibold cursor-pointer transition-transform hover:-translate-y-0.5 focus:ring-2 focus:ring-white"
         >
           <Plus className="w-4 h-4" />
           Nova Categoria
@@ -364,7 +364,7 @@ export default function Categories() {
               <Button
                 type="submit"
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 text-xs font-semibold"
+                className="bg-[#059669] hover:bg-[#059669]/90 text-white rounded-lg h-10 px-4 text-xs font-semibold cursor-pointer transition-transform hover:-translate-y-0.5"
               >
                 Salvar Categoria
               </Button>

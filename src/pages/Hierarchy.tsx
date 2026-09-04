@@ -183,15 +183,15 @@ export default function Hierarchy() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in text-[#F8FAFC]">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC] flex items-center gap-2.5">
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-2 border-b border-white/5">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2.5 font-['Lexend']">
             <Layers className="w-6 h-6 text-blue-400" /> Hierarquia Financeira
           </h1>
-          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
-            Estrutura de 3 níveis: <strong className="text-[#F8FAFC]">Classe</strong> →{' '}
-            <strong className="text-[#F8FAFC]">Categoria</strong> →{' '}
-            <strong className="text-[#F8FAFC]">Item</strong>. Itens são as folhas onde as transações
+          <p className="text-xs sm:text-sm text-slate-400">
+            Estrutura de 3 níveis: <strong className="text-white">Classe</strong> →{' '}
+            <strong className="text-white">Categoria</strong> →{' '}
+            <strong className="text-white">Item</strong>. Itens são as folhas onde as transações
             classificam.
           </p>
         </div>
@@ -579,7 +579,7 @@ export default function Hierarchy() {
             </Button>
             <Button
               onClick={save}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 text-xs font-semibold"
+              className="bg-[#059669] hover:bg-[#059669]/90 text-white rounded-lg h-10 px-4 text-xs font-semibold cursor-pointer transition-transform hover:-translate-y-0.5"
             >
               <Check className="w-4 h-4 mr-1.5" /> Salvar
             </Button>

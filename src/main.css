@@ -1,4 +1,5 @@
 /* Global styles - Theme, font, utilities, animations and global components */
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,82 +8,141 @@
 @layer base {
   :root,
   .dark {
-    /* Sistema visual escuro (Dark-only) para Orçamento Pessoal */
-    /* Fundo principal #0F172A */
-    --background: 222.2 47.4% 11.2%;
-    /* Texto principal #F8FAFC */
-    --foreground: 210 40% 98%;
+    /* MASTER.md Design System Tokens */
+    --color-primary: #1e40af;
+    --color-on-primary: #ffffff;
+    --color-secondary: #3b82f6;
+    --color-on-secondary: #000000;
+    --color-accent: #059669;
+    --color-on-accent: #ffffff;
+    --color-background: #0f172a;
+    --color-foreground: #ffffff;
+    --color-card: #192134;
+    --color-card-foreground: #ffffff;
+    --color-muted: #101a34;
+    --color-muted-foreground: #94a3b8;
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-destructive: #dc2626;
+    --color-on-destructive: #ffffff;
+    --color-ring: #1e40af;
 
-    /* Superfície padrão #192134 (cards, painéis, popovers) */
+    /* Spacing Tokens (Density 7/10 - Standard) */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+    --space-3xl: 64px;
+
+    /* Shadow Depths */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+
+    /* Sistema visual escuro (Dark-only) para Orçamento Pessoal */
+    /* Background #0F172A */
+    --background: 222.2 47.4% 11.2%;
+    /* Foreground #FFFFFF */
+    --foreground: 0 0% 100%;
+
+    /* Card #192134 */
     --card: 222.5 35% 15.1%;
-    --card-foreground: 210 40% 98%;
+    --card-foreground: 0 0% 100%;
 
     --popover: 222.5 35% 15.1%;
-    --popover-foreground: 210 40% 98%;
+    --popover-foreground: 0 0% 100%;
 
-    /* Primária #2563EB */
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary #1E40AF */
+    --primary: 224 71% 40%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Superfície elevada #202A40 */
-    --secondary: 221.5 33.3% 18.8%;
-    --secondary-foreground: 210 40% 98%;
+    /* Secondary #3B82F6 */
+    --secondary: 217.2 91.2% 59.8%;
+    --secondary-foreground: 0 0% 0%;
 
-    /* Superfície discreta #101A34 */
+    /* Muted #101A34 */
     --muted: 223.8 53% 13.3%;
-    /* Texto secundário/atenuado #94A3B8 */
     --muted-foreground: 215.4 16.3% 65.3%;
 
-    /* Interação azul / hover #202A40 */
-    --accent: 221.5 33.3% 18.8%;
-    --accent-foreground: 210 40% 98%;
+    /* Accent/CTA #059669 */
+    --accent: 159.8 84.1% 39.4%;
+    --accent-foreground: 0 0% 100%;
 
-    /* Destrutivo #DC2626 */
+    /* Destructive #DC2626 */
     --destructive: 0 72.2% 50.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    /* Bordas sutis em HSL: 222° 30% 22% (combina com rgba(255,255,255,0.09) sobre #0F172A) */
-    --border: 222 30% 22%;
-    --input: 222 30% 22%;
-    /* Foco / anel: Interação azul #3B82F6 */
-    --ring: 217.2 91.2% 59.8%;
+    /* Border rgba(255,255,255,0.08) */
+    --border: 222 30% 20%;
+    --input: 222 30% 20%;
+    --ring: 224 71% 40%;
 
-    --radius: 0.75rem;
+    --radius: 0.75rem; /* 12px */
 
-    /* Fundo profundo #09101F (sidebar, navs) */
-    --sidebar-background: 221.5 55% 7.5%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 221.2 83.2% 53.3%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 221.5 33.3% 18.8%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 30% 18%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar profundo */
+    --sidebar-background: 224 53% 10%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 159.8 84.1% 39.4%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222.5 35% 15.1%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 222 30% 20%;
+    --sidebar-ring: 224 71% 40%;
 
     /* Gráficos Recharts */
-    --chart-1: 217.2 91.2% 59.8%; /* Interação azul #3B82F6 */
-    --chart-2: 159.8 84.1% 39.4%; /* Sucesso / Receita #059669 */
+    --chart-1: 217.2 91.2% 59.8%; /* Secundária #3B82F6 */
+    --chart-2: 159.8 84.1% 39.4%; /* Accent #059669 */
     --chart-3: 350.5 94.7% 71%; /* Despesa #FB7185 */
     --chart-4: 37.7 92.1% 50.2%; /* Alerta #F59E0B */
-    --chart-5: 221.2 83.2% 53.3%; /* Primária */
+    --chart-5: 224 71% 40%; /* Primária #1E40AF */
+  }
+
+  * {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  html {
+    color-scheme: dark;
   }
 
   body {
     font-family:
+      'Source Sans 3',
       ui-sans-serif,
       system-ui,
       -apple-system,
       BlinkMacSystemFont,
       'Segoe UI',
       Roboto,
-      'Helvetica Neue',
-      Arial,
       sans-serif;
     background-color: #0f172a;
-    color: #f8fafc;
+    color: #ffffff;
+    font-size: 16px;
+    line-height: 1.5;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family:
+      'Lexend',
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    letter-spacing: -0.015em;
+    color: #ffffff;
   }
 
   /* Números financeiros alinhados tabularmente */
@@ -268,5 +328,95 @@
 
   .animate-spotlight {
     animation: spotlight 2s ease forwards;
+  }
+
+  /* Scroll reveal without GSAP dependency (using CSS transitions & prefers-reduced-motion) */
+  .reveal-init {
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      transform 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    will-change: opacity, transform;
+  }
+
+  .reveal-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal-init {
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+    }
+  }
+
+  /* MASTER.md Component Classes */
+  .btn-primary-cta {
+    background-color: #059669;
+    color: #ffffff;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 200ms ease;
+    cursor: pointer;
+  }
+  .btn-primary-cta:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary-outline {
+    background: transparent;
+    color: #3b82f6;
+    border: 1px solid #1e40af;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 200ms ease;
+    cursor: pointer;
+  }
+  .btn-secondary-outline:hover {
+    background-color: rgba(30, 64, 175, 0.15);
+    border-color: #3b82f6;
+    transform: translateY(-1px);
+  }
+
+  /* Glassmorphism strictly functional (modal overlay / fixed headers) */
+  .glass-header {
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-sidebar {
+    background: rgba(11, 17, 32, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-modal-overlay {
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Card hover lift (subtle 2px, no layout shift) */
+  .card-hover-lift {
+    transition:
+      transform 200ms ease,
+      box-shadow 200ms ease,
+      border-color 200ms ease;
+  }
+  .card-hover-lift:hover {
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card-hover-lift:hover {
+      transform: none;
+    }
   }
 }

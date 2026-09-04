@@ -1,69 +1,67 @@
 import React from 'react'
+import { ChevronLeft, ChevronRight, CalendarRange } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface YearSelectorProps {
-  currentYear: number
-  onChangeYear: (year: number) => void
+  year?: number
+  currentYear?: number
+  onChange?: (year: number) => void
+  onChangeYear?: (year: number) => void
   availableYears?: number[]
+  className?: string
 }
 
-export const YearSelector: React.FC<YearSelectorProps> = ({ currentYear, onChangeYear }) => {
-  const handlePrev = () => {
-    onChangeYear(currentYear - 1)
-  }
+export function YearSelector(props: YearSelectorProps) {
+  const { availableYears, className } = props
+  const year = props.year ?? props.currentYear ?? new Date().getFullYear()
+  const onChange = props.onChange ?? props.onChangeYear ?? (() => {})
 
-  const handleNext = () => {
-    onChangeYear(currentYear + 1)
-  }
+  const handlePrev = () => onChange(year - 1)
+  const handleNext = () => onChange(year + 1)
 
-  const handleCurrentYear = () => {
-    onChangeYear(new Date().getFullYear())
-  }
-
-  const isCurrentYear = currentYear === new Date().getFullYear()
+  const isPrevDisabled = availableYears && !availableYears.includes(year - 1)
+  const isNextDisabled = availableYears && !availableYears.includes(year + 1)
 
   return (
-    <div className="flex items-center gap-1.5 bg-[#192134] px-2.5 py-1.5 rounded-xl border border-white/10 shadow-xs">
+    <div
+      className={cn(
+        'inline-flex items-center gap-1 bg-[#192134] border border-white/10 rounded-xl p-1 shadow-sm',
+        className,
+      )}
+      role="group"
+      aria-label="Controle de navegação por ano"
+    >
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
         onClick={handlePrev}
-        title="Ano anterior"
+        disabled={isPrevDisabled}
+        className="h-8 w-8 text-slate-300 hover:text-white hover:bg-[#202A40] rounded-lg disabled:opacity-30 cursor-pointer focus:ring-1 focus:ring-white"
         aria-label="Ano anterior"
+        title="Ano anterior"
       >
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft className="w-4 h-4" />
       </Button>
 
-      <div className="flex items-center gap-2 min-w-[110px] justify-center px-1">
-        <Calendar className="h-4 w-4 text-blue-400" />
-        <span className="font-semibold text-[#F8FAFC] text-sm tabular-nums">{currentYear}</span>
+      <div className="px-3 py-1 flex items-center gap-2 text-xs font-semibold text-white">
+        <CalendarRange className="w-3.5 h-3.5 text-blue-400" />
+        <span className="font-['Lexend'] tabular-nums tracking-wide">{year}</span>
       </div>
 
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
         onClick={handleNext}
-        title="Próximo ano"
+        disabled={isNextDisabled}
+        className="h-8 w-8 text-slate-300 hover:text-white hover:bg-[#202A40] rounded-lg disabled:opacity-30 cursor-pointer focus:ring-1 focus:ring-white"
         aria-label="Próximo ano"
+        title="Próximo ano"
       >
-        <ChevronRight className="h-4 w-4" />
-      </Button>
-
-      <Button
-        variant={isCurrentYear ? 'outline' : 'secondary'}
-        size="sm"
-        className={`h-7 text-xs font-medium px-2.5 ml-1 rounded-lg border transition-colors ${
-          isCurrentYear
-            ? 'border-blue-500/40 text-blue-300 bg-blue-500/10'
-            : 'border-white/5 text-[#B6C2D4] bg-[#202A40] hover:text-[#F8FAFC]'
-        }`}
-        onClick={handleCurrentYear}
-      >
-        Ano Atual
+        <ChevronRight className="w-4 h-4" />
       </Button>
     </div>
   )
 }
+
+export default YearSelector

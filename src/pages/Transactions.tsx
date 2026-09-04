@@ -270,12 +270,12 @@ export default function Transactions() {
   return (
     <div className="space-y-6 animate-fade-in text-[#F8FAFC]">
       {/* Header & Month Selector */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-['Lexend']">
             Transações
           </h1>
-          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
+          <p className="text-xs sm:text-sm text-slate-400">
             Filtre, revise e gerencie os lançamentos sem perder contexto.
           </p>
         </div>

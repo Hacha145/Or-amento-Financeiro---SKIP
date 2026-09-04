@@ -583,13 +583,13 @@ export const NewTransactionDialog: React.FC<NewTransactionDialogProps> = ({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-11"
+              className="border-white/10 bg-transparent text-slate-300 hover:bg-[#202A40] hover:text-white rounded-lg h-11 cursor-pointer"
             >
               Cancelar
             </Button>
             <Button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl h-11 px-5 shadow-sm"
+              className="bg-[#059669] hover:bg-[#059669]/90 text-white font-semibold rounded-lg h-11 px-5 shadow-sm cursor-pointer transition-transform hover:-translate-y-0.5 focus:ring-2 focus:ring-white"
             >
               {duplicateFrom ? (
                 <>
