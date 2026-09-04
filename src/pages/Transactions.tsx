@@ -268,13 +268,15 @@ export default function Transactions() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in text-[#F8FAFC]">
       {/* Header & Month Selector */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Transações</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Gerencie, filtre e aprove a classificação de cada lançamento
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
+            Transações
+          </h1>
+          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
+            Filtre, revise e gerencie os lançamentos sem perder contexto.
           </p>
         </div>
 
@@ -284,26 +286,26 @@ export default function Transactions() {
       </div>
 
       {/* Filter Toolbar */}
-      <Card className="border-slate-200/80 shadow-xs">
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
         <CardContent className="p-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {/* Search */}
             <div className="relative lg:col-span-2">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+              <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-3 pointer-events-none" />
               <Input
                 placeholder="Buscar por descrição ou observação..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 text-xs h-9 bg-white"
+                className="pl-9 text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 placeholder:text-[#94A3B8] rounded-xl focus-visible:ring-blue-400"
               />
             </div>
 
             {/* Category Filter */}
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="text-xs h-9 bg-white">
+              <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                 <SelectValue placeholder="Todas categorias" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                 <SelectItem value="all">Todas categorias</SelectItem>
                 <SelectItem value="none">Sem categoria</SelectItem>
                 {categories.map((c) => (
@@ -322,10 +324,10 @@ export default function Transactions() {
 
             {/* Type Filter */}
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="text-xs h-9 bg-white">
+              <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                 <SelectValue placeholder="Todos os tipos" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                 <SelectItem value="all">Todas (Receitas & Despesas)</SelectItem>
                 <SelectItem value="expense">Apenas Despesas</SelectItem>
                 <SelectItem value="income">Apenas Receitas</SelectItem>
@@ -334,10 +336,10 @@ export default function Transactions() {
 
             {/* Status Filter (Classified / Pending) */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="text-xs h-9 bg-white">
+              <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                 <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="pending">
                   Aguardando revisão ({monthTransactions.filter((t) => t.needsReview).length})
@@ -349,8 +351,8 @@ export default function Transactions() {
 
           {/* Selection Actions Bar (when rows are selected) */}
           {selectedIds.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs animate-fade-in">
-              <span className="font-semibold text-emerald-900">
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs animate-fade-in">
+              <span className="font-semibold text-blue-300">
                 {selectedIds.length}{' '}
                 {selectedIds.length === 1 ? 'item selecionado' : 'itens selecionados'}
               </span>
@@ -360,9 +362,9 @@ export default function Transactions() {
                   size="sm"
                   variant="outline"
                   onClick={() => setBatchCategoryModal(true)}
-                  className="h-7 text-xs bg-white text-emerald-800 hover:bg-emerald-100 border-emerald-300"
+                  className="h-8 text-xs bg-[#202A40] text-blue-300 hover:bg-[#202A40]/80 border-blue-500/30 rounded-xl"
                 >
-                  <Sparkles className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5 text-blue-400" />
                   Atribuir Categoria em lote
                 </Button>
 
@@ -370,7 +372,7 @@ export default function Transactions() {
                   size="sm"
                   variant="destructive"
                   onClick={handleBatchDelete}
-                  className="h-7 text-xs"
+                  className="h-8 text-xs rounded-xl bg-red-600 hover:bg-red-700 text-white"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" />
                   Excluir selecionados
@@ -382,17 +384,17 @@ export default function Transactions() {
       </Card>
 
       {/* Transactions Table / List */}
-      <Card className="border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b bg-slate-50/50">
-          <div className="text-xs text-slate-500 font-medium">
-            Exibindo <strong>{filteredTransactions.length}</strong> de{' '}
-            <strong>{monthTransactions.length}</strong> transações no mês
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-[#101A34]/60">
+          <div className="text-xs text-[#B6C2D4] font-medium">
+            Exibindo <strong className="text-[#F8FAFC]">{filteredTransactions.length}</strong> de{' '}
+            <strong className="text-[#F8FAFC]">{monthTransactions.length}</strong> transações no mês
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleExportFiltered}
-            className="text-xs h-7 gap-1 text-slate-600 hover:text-slate-900"
+            className="text-xs h-8 gap-1.5 text-blue-300 hover:text-white hover:bg-[#202A40] rounded-xl border border-white/5"
           >
             <Download className="w-3.5 h-3.5" />
             Exportar CSV
@@ -400,17 +402,17 @@ export default function Transactions() {
         </div>
 
         {filteredTransactions.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <Filter className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-            <p className="text-base font-semibold text-slate-700">Nenhuma transação encontrada</p>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+          <div className="py-16 text-center text-[#94A3B8]">
+            <Filter className="w-10 h-10 mx-auto mb-2 text-slate-600" />
+            <p className="text-base font-semibold text-[#F8FAFC]">Nenhuma transação encontrada</p>
+            <p className="text-xs text-[#B6C2D4] mt-1 max-w-sm mx-auto">
               Nenhum lançamento corresponde aos filtros ativos para este mês.
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 border-b text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+              <thead className="bg-[#101A34] border-b border-white/5 text-[#94A3B8] font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="p-3.5 w-10 text-center">
                     <Checkbox
@@ -428,7 +430,7 @@ export default function Transactions() {
                   <th className="p-3.5 w-28 text-center">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-white/5">
                 {filteredTransactions.map((tx) => {
                   const cat = tx.categoryId ? categoryMap.get(tx.categoryId) : null
                   const suggestedCat = tx.suggestedCategoryId
@@ -444,9 +446,9 @@ export default function Transactions() {
                   return (
                     <tr
                       key={tx.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        tx.needsReview ? 'bg-amber-50/40' : ''
-                      } ${isSelected ? 'bg-emerald-50/50' : ''}`}
+                      className={`hover:bg-[#202A40]/70 transition-colors ${
+                        tx.needsReview ? 'bg-amber-500/5' : ''
+                      } ${isSelected ? 'bg-blue-600/10' : ''}`}
                     >
                       {/* Checkbox */}
                       <td className="p-3.5 text-center">
@@ -457,13 +459,13 @@ export default function Transactions() {
                       </td>
 
                       {/* Date */}
-                      <td className="p-3.5 text-slate-500 whitespace-nowrap font-medium">
+                      <td className="p-3.5 text-[#B6C2D4] whitespace-nowrap font-medium tabular-nums">
                         {formattedDate}
                       </td>
 
                       {/* Description + Notes */}
                       <td className="p-3.5">
-                        <div className="flex items-start gap-2 max-w-md">
+                        <div className="flex items-start gap-2.5 max-w-md">
                           <span
                             className="w-2.5 h-2.5 rounded-full shrink-0 mt-1"
                             style={{
@@ -471,24 +473,24 @@ export default function Transactions() {
                                 ? cat.color
                                 : suggestedCat
                                   ? suggestedCat.color
-                                  : '#cbd5e1',
+                                  : '#64748b',
                             }}
                           />
                           <div>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-slate-900">{tx.description}</span>
+                              <span className="font-semibold text-[#F8FAFC]">{tx.description}</span>
                               {tx.isCreditCardPayment && (
                                 <Badge
-                                  className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] gap-1 font-medium hover:bg-amber-100 py-0 px-1.5"
+                                  className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] gap-1 font-medium py-0 px-1.5"
                                   title="Pagamento de fatura: potencial duplicação de gastos individuais (ignorado do total de despesas do Dashboard por padrão)"
                                 >
-                                  <CreditCard className="w-2.5 h-2.5 text-amber-700" />
+                                  <CreditCard className="w-2.5 h-2.5 text-amber-300" />
                                   Fatura
                                 </Badge>
                               )}
                             </div>
                             {tx.notes && (
-                              <span className="text-[11px] text-slate-500 block truncate">
+                              <span className="text-[11px] text-[#94A3B8] block truncate mt-0.5">
                                 {tx.notes}
                               </span>
                             )}
@@ -501,9 +503,10 @@ export default function Transactions() {
                         {cat ? (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border"
                               style={{
-                                backgroundColor: `${cat.color}15`,
+                                backgroundColor: `${cat.color}22`,
+                                borderColor: `${cat.color}44`,
                                 color: cat.color,
                               }}
                             >
@@ -515,7 +518,7 @@ export default function Transactions() {
                             </span>
                             <Badge
                               variant="outline"
-                              className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] gap-1 py-0 px-1.5 font-normal"
+                              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-[10px] gap-1 py-0 px-1.5 font-normal"
                               title="Classificado por correspondência exata inteligente"
                             >
                               <CheckCircle2 className="w-2.5 h-2.5" /> Exata
@@ -527,15 +530,15 @@ export default function Transactions() {
                               <div className="flex items-center gap-1.5">
                                 <Badge
                                   variant="outline"
-                                  className="border-amber-300 bg-amber-100/70 text-amber-900 text-[10px] gap-1"
+                                  className="border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] gap-1"
                                 >
-                                  <Sparkles className="w-3 h-3 text-amber-600" />
+                                  <Sparkles className="w-3 h-3 text-amber-400" />
                                   Sugestão: {suggestedCat.name}
                                 </Badge>
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="h-6 w-6 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                  className="h-6 w-6 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg"
                                   onClick={() =>
                                     handleConfirmOne(tx, tx.suggestedCategoryId || undefined)
                                   }
@@ -547,22 +550,22 @@ export default function Transactions() {
                             ) : (
                               <Badge
                                 variant="outline"
-                                className="border-slate-300 bg-slate-100 text-slate-600 text-[10px]"
+                                className="border-white/10 bg-[#101A34] text-[#B6C2D4] text-[10px]"
                               >
                                 Não classificado
                               </Badge>
                             )}
                           </div>
                         ) : (
-                          <span className="text-slate-400 italic">Sem categoria</span>
+                          <span className="text-[#94A3B8] italic">Sem categoria</span>
                         )}
                       </td>
 
                       {/* Amount */}
                       <td className="p-3.5 text-right whitespace-nowrap">
                         <span
-                          className={`font-bold text-sm ${
-                            isExpense ? 'text-rose-600' : 'text-emerald-600'
+                          className={`font-bold text-sm tabular-nums ${
+                            isExpense ? 'text-[#FB7185]' : 'text-[#34D399]'
                           }`}
                         >
                           {isExpense ? '- ' : '+ '}
@@ -577,7 +580,7 @@ export default function Transactions() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 text-emerald-600 hover:bg-emerald-50"
+                              className="h-8 w-8 text-emerald-400 hover:bg-emerald-500/10 rounded-lg"
                               onClick={() => openEditModal(tx)}
                               title="Classificar e confirmar"
                             >
@@ -587,7 +590,7 @@ export default function Transactions() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-slate-500 hover:bg-slate-100"
+                            className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                             onClick={() => openEditModal(tx)}
                             title="Editar lançamento"
                           >
@@ -596,7 +599,7 @@ export default function Transactions() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-rose-500 hover:bg-rose-50"
+                            className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
                             onClick={() => deleteTransaction(tx.id)}
                             title="Excluir"
                           >
@@ -615,75 +618,81 @@ export default function Transactions() {
 
       {/* EDIT TRANSACTION MODAL */}
       <Dialog open={Boolean(editModalTx)} onOpenChange={(open) => !open && setEditModalTx(null)}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px] bg-[#192134] text-[#F8FAFC] border border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-              <Edit2 className="w-5 h-5 text-emerald-600" />
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-bold text-[#F8FAFC]">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <Edit2 className="w-4 h-4" />
+              </div>
               Editar Lançamento
             </DialogTitle>
           </DialogHeader>
 
           {editModalTx && (
             <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg">
+              <div className="grid grid-cols-2 gap-2 p-1 bg-[#101A34] rounded-xl border border-white/5">
                 <button
                   type="button"
                   onClick={() => setEditType('expense')}
-                  className={`flex items-center justify-center gap-2 py-2 rounded-md font-medium text-xs transition-all ${
-                    editType === 'expense' ? 'bg-white text-rose-700 shadow-sm' : 'text-slate-600'
+                  className={`flex items-center justify-center gap-2 py-2 rounded-lg font-medium text-xs transition-all ${
+                    editType === 'expense'
+                      ? 'bg-[#202A40] text-rose-300 border border-white/10 shadow-sm'
+                      : 'text-[#94A3B8] hover:text-[#F8FAFC]'
                   }`}
                 >
-                  <ArrowDownRight className="w-3.5 h-3.5 text-rose-500" />
+                  <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />
                   Despesa
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditType('income')}
-                  className={`flex items-center justify-center gap-2 py-2 rounded-md font-medium text-xs transition-all ${
-                    editType === 'income' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'
+                  className={`flex items-center justify-center gap-2 py-2 rounded-lg font-medium text-xs transition-all ${
+                    editType === 'income'
+                      ? 'bg-[#202A40] text-emerald-300 border border-white/10 shadow-sm'
+                      : 'text-[#94A3B8] hover:text-[#F8FAFC]'
                   }`}
                 >
-                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
                   Receita
                 </button>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Data</Label>
+                  <Label className="text-xs text-[#B6C2D4]">Data</Label>
                   <Input
                     type="date"
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
-                    className="text-xs"
+                    className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Valor (R$)</Label>
+                  <Label className="text-xs text-[#B6C2D4]">Valor (R$)</Label>
                   <Input
                     value={editAmount}
                     onChange={(e) => setEditAmount(e.target.value)}
-                    className="text-xs"
+                    className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl tabular-nums"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Descrição completa</Label>
+                <Label className="text-xs text-[#B6C2D4]">Descrição completa</Label>
                 <Input
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
-                  className="text-xs font-medium"
+                  className="text-xs font-medium h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Categoria</Label>
+                <Label className="text-xs text-[#B6C2D4]">Categoria</Label>
                 <Select value={editCategory} onValueChange={setEditCategory}>
-                  <SelectTrigger className="text-xs">
+                  <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     <SelectItem value="none">Sem categoria</SelectItem>
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
@@ -698,30 +707,35 @@ export default function Transactions() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-emerald-700 font-medium pt-0.5">
+                <p className="text-[11px] text-emerald-400 font-medium pt-0.5">
                   ✓ Salvar aprenderá esta regra com normalização inteligente (trata maiúsculas,
                   espaços e pontuações) para novos extratos bancários.
                 </p>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Observação</Label>
+                <Label className="text-xs text-[#B6C2D4]">Observação</Label>
                 <Textarea
                   rows={2}
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  className="text-xs"
+                  className="text-xs bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                   placeholder="Detalhes opcionais..."
                 />
               </div>
 
-              <DialogFooter className="gap-2 sm:gap-0 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setEditModalTx(null)}>
+              <DialogFooter className="gap-2 sm:gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditModalTx(null)}
+                  className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10"
+                >
                   Cancelar
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4"
                   onClick={handleSaveEdit}
                 >
                   Salvar e Confirmar
@@ -734,20 +748,22 @@ export default function Transactions() {
 
       {/* BATCH CATEGORY ASSIGN MODAL */}
       <Dialog open={batchCategoryModal} onOpenChange={setBatchCategoryModal}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[420px] bg-[#192134] text-[#F8FAFC] border border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold">
+            <DialogTitle className="text-base font-bold text-[#F8FAFC]">
               Classificar {selectedIds.length} Lançamentos
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            <Label className="text-xs">Escolha a categoria para todos os itens selecionados:</Label>
+            <Label className="text-xs text-[#B6C2D4]">
+              Escolha a categoria para todos os itens selecionados:
+            </Label>
             <Select value={selectedBatchCat} onValueChange={setSelectedBatchCat}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                 <SelectValue placeholder="Selecione a categoria..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                 {categories.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     <div className="flex items-center gap-2">
@@ -762,20 +778,25 @@ export default function Transactions() {
               </SelectContent>
             </Select>
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#94A3B8]">
               O sistema aprenderá a descrição de cada um dos itens para classificar automaticamente
               as próximas ocorrências.
             </p>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setBatchCategoryModal(false)}>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBatchCategoryModal(false)}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10"
+            >
               Cancelar
             </Button>
             <Button
               size="sm"
               disabled={!selectedBatchCat}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 disabled:opacity-50"
               onClick={handleBatchAssignCategory}
             >
               Confirmar Classificação

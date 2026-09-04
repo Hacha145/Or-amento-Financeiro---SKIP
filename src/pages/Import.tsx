@@ -547,13 +547,13 @@ export default function ImportBank() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
+    <div className="space-y-6 animate-fade-in max-w-5xl mx-auto text-[#F8FAFC]">
       {/* Title */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
           Importar Extratos Bancários
         </h1>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
           Selecione um ou múltiplos arquivos (OFX, CSV, XLSX) de uma só vez. O motor aprende regras
           exatas e detecta automaticamente pagamentos de fatura de cartão.
         </p>
@@ -563,24 +563,27 @@ export default function ImportBank() {
       {stage === 'upload' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-4">
-            <Card className="border-slate-200/80 shadow-xs">
-              <CardHeader>
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <UploadCloud className="w-5 h-5 text-emerald-600" />
+            <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+              <CardHeader className="border-b border-white/5 pb-4">
+                <CardTitle className="text-lg font-bold flex items-center gap-2.5 text-[#F8FAFC]">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                    <UploadCloud className="w-4 h-4" />
+                  </div>
                   Selecione um ou múltiplos arquivos de extrato
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  Formatos aceitos: <strong>.OFX</strong> (Itaú, Nubank, Bradesco, Inter, BB, etc.),{' '}
-                  <strong>.CSV</strong> ou <strong>.XLSX</strong>. Você pode selecionar vários
+                <CardDescription className="text-xs text-[#B6C2D4]">
+                  Formatos aceitos: <strong className="text-[#F8FAFC]">.OFX</strong> (Itaú, Nubank,
+                  Bradesco, Inter, BB, etc.), <strong className="text-[#F8FAFC]">.CSV</strong> ou{' '}
+                  <strong className="text-[#F8FAFC]">.XLSX</strong>. Você pode selecionar vários
                   arquivos de uma só vez.
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-4">
                 <div
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={handleFiles}
-                  className="border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/20 transition-all rounded-2xl p-10 text-center flex flex-col items-center justify-center cursor-pointer relative"
+                  className="border-2 border-dashed border-white/15 hover:border-blue-400 hover:bg-[#202A40]/40 transition-all rounded-2xl p-10 text-center flex flex-col items-center justify-center cursor-pointer relative group"
                 >
                   <input
                     type="file"
@@ -589,19 +592,19 @@ export default function ImportBank() {
                     onChange={handleFiles}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
-                  <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
                     <Files className="w-8 h-8" />
                   </div>
-                  <p className="font-semibold text-slate-800 text-base">
+                  <p className="font-semibold text-[#F8FAFC] text-base">
                     Arraste seus extratos bancários aqui
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-[#B6C2D4] mt-1">
                     ou clique para procurar múltiplos arquivos no seu computador (segure Ctrl/Cmd)
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <Badge
                       variant="secondary"
-                      className="text-[10px] text-emerald-800 bg-emerald-100"
+                      className="text-[10px] text-blue-300 bg-blue-500/20 border border-blue-500/30 font-semibold px-2.5 py-0.5 rounded-full"
                     >
                       Seleção múltipla ativada
                     </Badge>
@@ -611,19 +614,21 @@ export default function ImportBank() {
             </Card>
 
             {/* Historical template import (Part 1) */}
-            <Card className="border-emerald-200/80 shadow-xs">
-              <CardHeader>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-emerald-600" />
+            <Card className="border-emerald-500/30 bg-[#192134] rounded-2xl shadow-sm">
+              <CardHeader className="border-b border-white/5 pb-4">
+                <CardTitle className="text-base font-bold flex items-center gap-2.5 text-emerald-300">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                    <Layers className="w-4 h-4" />
+                  </div>
                   Importar planilha histórica (template .xlsx)
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-[#B6C2D4]">
                   Leitura correta da planilha anual: detecta aba + ano + classe + categoria + item +
                   mês, valida por âncoras (sem adivinhar posições), decompõe fórmulas multi-valor e
                   reconcilia totais. Em caso de divergência, mostra um relatório de diagnóstico.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 pt-4">
                 <div
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
@@ -631,7 +636,7 @@ export default function ImportBank() {
                     const f = Array.from(e.dataTransfer.files)[0]
                     if (f) handleTemplateFile(f)
                   }}
-                  className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/20 transition-all rounded-xl p-6 text-center flex flex-col items-center justify-center cursor-pointer relative"
+                  className="border-2 border-dashed border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-500/10 transition-all rounded-xl p-6 text-center flex flex-col items-center justify-center cursor-pointer relative group"
                 >
                   <input
                     type="file"
@@ -642,18 +647,18 @@ export default function ImportBank() {
                     }}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
-                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
                     <Layers className="w-6 h-6" />
                   </div>
-                  <p className="font-semibold text-slate-800 text-sm">
+                  <p className="font-semibold text-[#F8FAFC] text-sm">
                     {templateBusy ? 'Lendo planilha…' : 'Arraste o template .xlsx aqui'}
                   </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-[#B6C2D4] mt-0.5">
                     Ou clique para selecionar. Aba(s) "Orçamento &lt;ANO&gt;".
                   </p>
                 </div>
                 {templateBusy && (
-                  <div className="text-xs text-emerald-700 flex items-center gap-2">
+                  <div className="text-xs text-emerald-400 flex items-center gap-2">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     Processando: parse → detectar → validar âncoras → extrair → reconciliar →
                     relatório.
@@ -665,17 +670,17 @@ export default function ImportBank() {
 
           {/* Tips sidebar */}
           <div>
-            <Card className="border-slate-200/80 shadow-xs bg-slate-50/50 space-y-4">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
+            <Card className="border-white/10 bg-[#101A34] rounded-2xl shadow-sm space-y-4">
+              <CardHeader className="pb-2 border-b border-white/5">
+                <CardTitle className="text-sm font-bold text-[#F8FAFC] flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-400" />
                   Recursos inteligentes:
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-xs text-slate-600 leading-relaxed pt-0">
+              <CardContent className="space-y-3.5 text-xs text-[#B6C2D4] leading-relaxed pt-3">
                 <div className="space-y-1">
-                  <strong className="text-slate-900 flex items-center gap-1">
-                    <Files className="w-3.5 h-3.5 text-emerald-600" />
+                  <strong className="text-[#F8FAFC] flex items-center gap-1.5 font-semibold">
+                    <Files className="w-3.5 h-3.5 text-blue-400" />
                     Múltiplos Extratos Acumulados:
                   </strong>
                   <p>
@@ -684,9 +689,9 @@ export default function ImportBank() {
                   </p>
                 </div>
 
-                <div className="space-y-1 pt-1 border-t border-slate-200/70">
-                  <strong className="text-slate-900 flex items-center gap-1">
-                    <CreditCard className="w-3.5 h-3.5 text-amber-600" />
+                <div className="space-y-1 pt-2 border-t border-white/5">
+                  <strong className="text-[#F8FAFC] flex items-center gap-1.5 font-semibold">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-400" />
                     Detecção de Pagamento de Fatura:
                   </strong>
                   <p>
@@ -696,9 +701,9 @@ export default function ImportBank() {
                   </p>
                 </div>
 
-                <div className="space-y-1 pt-1 border-t border-slate-200/70">
-                  <strong className="text-slate-900 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <div className="space-y-1 pt-2 border-t border-white/5">
+                  <strong className="text-[#F8FAFC] flex items-center gap-1.5 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                     Motor de Regras O(1):
                   </strong>
                   <p>
@@ -714,30 +719,30 @@ export default function ImportBank() {
 
       {/* STAGE 2: COLUMN MAPPING (for CSV with unmapped headers) */}
       {stage === 'mapping' && currentMappingFile && (
-        <Card className="border-slate-200/80 shadow-xs">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold">
+        <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+          <CardHeader className="border-b border-white/5 pb-4">
+            <CardTitle className="text-lg font-bold text-[#F8FAFC]">
               Mapear Colunas ({currentMappingFile.file.name})
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-xs text-[#B6C2D4]">
               Indique quais colunas correspondem à Data, Descrição e Valor para este arquivo.
               {pendingMappingQueue.length > 0 && (
-                <span className="text-emerald-700 font-semibold ml-1">
+                <span className="text-blue-300 font-semibold ml-1">
                   ({pendingMappingQueue.length} outro(s) arquivo(s) aguardando mapeamento)
                 </span>
               )}
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold">Coluna de Data *</Label>
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold text-[#F8FAFC]">Coluna de Data *</Label>
                 <Select value={dateCol} onValueChange={setDateCol}>
-                  <SelectTrigger className="bg-white text-xs">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     {currentMappingFile.headers.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
@@ -747,13 +752,15 @@ export default function ImportBank() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold">Coluna de Descrição *</Label>
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold text-[#F8FAFC]">
+                  Coluna de Descrição *
+                </Label>
                 <Select value={descCol} onValueChange={setDescCol}>
-                  <SelectTrigger className="bg-white text-xs">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     {currentMappingFile.headers.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
@@ -763,13 +770,13 @@ export default function ImportBank() {
                 </Select>
               </div>
 
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold">Coluna de Valor *</Label>
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold text-[#F8FAFC]">Coluna de Valor *</Label>
                 <Select value={amountCol} onValueChange={setAmountCol}>
-                  <SelectTrigger className="bg-white text-xs">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     {currentMappingFile.headers.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
@@ -781,7 +788,7 @@ export default function ImportBank() {
             </div>
           </CardContent>
 
-          <CardFooter className="flex justify-between border-t pt-4">
+          <CardFooter className="flex justify-between border-t border-white/5 pt-4">
             <Button
               variant="outline"
               size="sm"
@@ -791,13 +798,14 @@ export default function ImportBank() {
                 setProcessedFileNames([])
                 setPendingMappingQueue([])
               }}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10"
             >
               Cancelar
             </Button>
             <Button
               size="sm"
               onClick={handleApplyMapping}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-5"
             >
               Continuar &rarr;
             </Button>
@@ -807,35 +815,35 @@ export default function ImportBank() {
 
       {/* STAGE 3: PREVIEW & CLASSIFICATION */}
       {stage === 'preview' && (
-        <Card className="border-slate-200/80 shadow-xs">
-          <CardHeader className="pb-3 border-b">
+        <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+          <CardHeader className="pb-3 border-b border-white/5">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-emerald-600" />
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-[#F8FAFC]">
+                  <Eye className="w-5 h-5 text-blue-400" />
                   Prévia Consolidada ({previewItems.length} lançamentos de{' '}
                   {processedFileNames.length}{' '}
                   {processedFileNames.length === 1 ? 'arquivo' : 'arquivos'})
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-[#B6C2D4]">
                   Revise as transações extraídas. Arquivos processados:{' '}
-                  <strong>{processedFileNames.join(', ')}</strong>
+                  <strong className="text-[#F8FAFC]">{processedFileNames.join(', ')}</strong>
                 </CardDescription>
               </div>
 
               {/* Status summary badges */}
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-xs font-semibold">
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-xs font-semibold">
                   {importResult.autoExact} correspondências exatas
                 </Badge>
                 {importResult.suggested > 0 && (
-                  <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-xs font-semibold">
+                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-xs font-semibold">
                     {importResult.suggested} sugestões
                   </Badge>
                 )}
                 {importResult.ccCount > 0 && (
-                  <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-xs font-semibold gap-1">
-                    <CreditCard className="w-3.5 h-3.5 text-amber-700" />
+                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-xs font-semibold gap-1">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-300" />
                     {importResult.ccCount} pagamentos de fatura detectados
                   </Badge>
                 )}
@@ -846,7 +854,7 @@ export default function ImportBank() {
           <CardContent className="p-0">
             <div className="overflow-x-auto max-h-[500px]">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 border-b text-slate-600 font-semibold uppercase tracking-wider text-[11px] sticky top-0">
+                <thead className="bg-[#101A34] border-b border-white/5 text-[#94A3B8] font-semibold uppercase tracking-wider text-[11px] sticky top-0 z-10">
                   <tr>
                     <th className="p-3 w-24">Data</th>
                     <th className="p-3">Descrição no Extrato</th>
@@ -856,39 +864,39 @@ export default function ImportBank() {
                     <th className="p-3 w-12 text-center"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-white/5">
                   {previewItems.map((item) => {
                     const isExpense = item.type === 'expense'
 
                     return (
                       <tr
                         key={item.id}
-                        className={`hover:bg-slate-50/70 transition-colors ${
+                        className={`hover:bg-[#202A40]/70 transition-colors ${
                           item.isCreditCardPayment
-                            ? 'bg-amber-50/30'
+                            ? 'bg-amber-500/5'
                             : item.confidence === 'exact'
-                              ? 'bg-emerald-50/20'
+                              ? 'bg-emerald-500/5'
                               : ''
                         }`}
                       >
-                        <td className="p-3 text-slate-500 whitespace-nowrap font-medium">
+                        <td className="p-3 text-[#B6C2D4] whitespace-nowrap font-medium tabular-nums">
                           {item.date.split('-').reverse().join('/')}
                         </td>
 
                         <td className="p-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-slate-900">{item.description}</span>
+                            <span className="font-medium text-[#F8FAFC]">{item.description}</span>
                             {item.isCreditCardPayment && (
                               <Badge
-                                className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] gap-1 font-semibold hover:bg-amber-100"
+                                className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] gap-1 font-semibold"
                                 title="Pagamento de fatura: potencial duplicação de gastos individuais já lançados"
                               >
-                                <CreditCard className="w-3 h-3 text-amber-700" />
+                                <CreditCard className="w-3 h-3 text-amber-300" />
                                 Fatura / Duplicação potencial
                               </Badge>
                             )}
                             {processedFileNames.length > 1 && (
-                              <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                              <span className="text-[10px] text-[#94A3B8] bg-[#101A34] border border-white/5 px-1.5 py-0.5 rounded">
                                 {item.fileName}
                               </span>
                             )}
@@ -897,8 +905,8 @@ export default function ImportBank() {
 
                         <td className="p-3 text-right whitespace-nowrap">
                           <span
-                            className={`font-bold ${
-                              isExpense ? 'text-rose-600' : 'text-emerald-600'
+                            className={`font-bold tabular-nums ${
+                              isExpense ? 'text-[#FB7185]' : 'text-[#34D399]'
                             }`}
                           >
                             {isExpense ? '- ' : '+ '}
@@ -911,10 +919,10 @@ export default function ImportBank() {
                             value={item.selectedCatId}
                             onValueChange={(val) => handleItemCategoryChange(item.id, val)}
                           >
-                            <SelectTrigger className="text-xs h-8 bg-white">
+                            <SelectTrigger className="text-xs h-9 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                               <SelectValue placeholder="Selecione categoria..." />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                               <SelectItem value="none">Sem categoria (revisar depois)</SelectItem>
                               {categories.map((c) => (
                                 <SelectItem key={c.id} value={c.id}>
@@ -934,21 +942,24 @@ export default function ImportBank() {
                         <td className="p-3 text-center whitespace-nowrap">
                           {item.confidence === 'exact' ? (
                             <Badge
-                              className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1 font-semibold"
+                              className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] gap-1 font-semibold"
                               title="Reconhecido por correspondência exata inteligente"
                             >
-                              <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Correspondência
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Correspondência
                               exata
                             </Badge>
                           ) : item.confidence === 'suggested' ? (
                             <Badge
-                              className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] gap-1 font-semibold"
+                              className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] gap-1 font-semibold"
                               title="Sugestão automática por palavra-chave"
                             >
-                              <Sparkles className="w-3 h-3 text-amber-600" /> Sugestão
+                              <Sparkles className="w-3 h-3 text-amber-400" /> Sugestão
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-[10px] text-slate-500">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] text-[#94A3B8] border-white/10 bg-[#101A34]"
+                            >
                               Não identificado
                             </Badge>
                           )}
@@ -958,7 +969,7 @@ export default function ImportBank() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            className="h-7 w-7 text-[#94A3B8] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"
                             onClick={() => handleRemovePreviewItem(item.id)}
                             title="Remover da prévia"
                           >
@@ -973,7 +984,7 @@ export default function ImportBank() {
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col sm:flex-row gap-2 justify-between border-t p-4">
+          <CardFooter className="flex flex-col sm:flex-row gap-2 justify-between border-t border-white/5 p-4">
             <Button
               variant="outline"
               size="sm"
@@ -982,14 +993,14 @@ export default function ImportBank() {
                 setPreviewItems([])
                 setProcessedFileNames([])
               }}
-              className="text-xs"
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
             >
               Cancelar e escolher outros arquivos
             </Button>
             <Button
               size="sm"
               onClick={handleCommitImport}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-6 shadow-xs"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-6 rounded-xl h-10 shadow-sm"
             >
               Importar {previewItems.length} Lançamentos &rarr;
             </Button>
@@ -1002,11 +1013,11 @@ export default function ImportBank() {
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-emerald-600" />
+              <h2 className="text-lg font-bold text-[#F8FAFC] flex items-center gap-2">
+                <Layers className="w-5 h-5 text-emerald-400" />
                 Relatório de importação do template
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#B6C2D4]">
                 Diagnóstico completo pós-importação. Abas, anos, estruturas, categorias, itens,
                 células, fórmulas, divergências e totais planilha vs reconstruídos.
               </p>
@@ -1018,7 +1029,7 @@ export default function ImportBank() {
                 setTemplateResult(null)
                 setStage('upload')
               }}
-              className="text-xs"
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-9 text-xs"
             >
               Voltar
             </Button>
@@ -1029,34 +1040,34 @@ export default function ImportBank() {
 
       {/* STAGE 4: SUCCESS */}
       {stage === 'success' && (
-        <Card className="border-slate-200/80 shadow-xs text-center max-w-xl mx-auto py-8">
+        <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-xl text-center max-w-xl mx-auto py-8">
           <CardHeader>
-            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2">
-              <CheckCircle2 className="w-10 h-10" />
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-2">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
-            <CardTitle className="text-2xl font-bold text-slate-900">
+            <CardTitle className="text-2xl font-bold text-[#F8FAFC]">
               Importação Concluída!
             </CardTitle>
-            <CardDescription className="text-sm text-slate-600">
+            <CardDescription className="text-sm text-[#B6C2D4]">
               {importResult.total} lançamentos foram adicionados com sucesso ao seu orçamento.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4 text-xs text-slate-600">
-            <div className="bg-slate-50 border rounded-xl p-4 text-left space-y-2">
-              <p className="font-semibold text-slate-900 text-sm">Resumo do processamento:</p>
+          <CardContent className="space-y-4 text-xs text-[#B6C2D4]">
+            <div className="bg-[#101A34] border border-white/5 rounded-xl p-4 text-left space-y-2">
+              <p className="font-semibold text-[#F8FAFC] text-sm">Resumo do processamento:</p>
               <p>
-                • <strong>{importResult.autoExact}</strong> transações reconhecidas automaticamente
-                por histórico exato.
+                • <strong className="text-[#F8FAFC]">{importResult.autoExact}</strong> transações
+                reconhecidas automaticamente por histórico exato.
               </p>
               {importResult.ccCount > 0 && (
-                <p className="text-amber-800">
+                <p className="text-amber-300">
                   • <strong>{importResult.ccCount}</strong> pagamentos de fatura foram marcados e
                   excluídos dos totais de despesas por padrão para evitar duplicação.
                 </p>
               )}
               {importResult.suggested > 0 && (
-                <p className="text-amber-700">
+                <p className="text-blue-300">
                   • <strong>{importResult.suggested}</strong> lançamentos novos aguardam sua revisão
                   rápida em Transações.
                 </p>
@@ -1072,13 +1083,13 @@ export default function ImportBank() {
                 setPreviewItems([])
                 setProcessedFileNames([])
               }}
-              className="text-xs"
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
             >
               Importar outros arquivos
             </Button>
             <Button
               onClick={() => navigate('/transacoes')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-6"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-6 rounded-xl h-10 shadow-sm"
             >
               Ver Transações
             </Button>

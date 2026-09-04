@@ -430,41 +430,41 @@ export default function Welcome() {
   }
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-6 px-4">
+    <div className="min-h-[85vh] flex items-center justify-center py-6 px-4 text-[#F8FAFC]">
       {/* STEP 1: WELCOME */}
       {step === 'welcome' && (
-        <Card className="w-full max-w-[640px] shadow-lg border-slate-200">
-          <CardHeader className="text-center pb-6">
-            <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-4 shadow-xs">
+        <Card className="w-full max-w-[640px] shadow-2xl border-white/10 bg-[#192134] rounded-2xl">
+          <CardHeader className="text-center pb-6 border-b border-white/5">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-4 shadow-sm">
               <Sparkles className="w-7 h-7" />
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight text-slate-900">
+            <CardTitle className="text-2xl font-bold tracking-tight text-[#F8FAFC]">
               Bem-vindo ao Orçamento Pessoal
             </CardTitle>
-            <CardDescription className="text-base text-slate-600 mt-2 max-w-md mx-auto">
+            <CardDescription className="text-base text-[#B6C2D4] mt-2 max-w-md mx-auto">
               Controle financeiro inteligente, offline e adaptado ao formato da sua planilha.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             {/* Main Option: Upload Template */}
             <button
               onClick={() => setStep('upload')}
-              className="w-full p-4 rounded-xl border-2 border-emerald-500/80 bg-emerald-50/50 hover:bg-emerald-50 text-left transition-all flex items-start gap-4 group cursor-pointer"
+              className="w-full p-4 rounded-xl border border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/15 text-left transition-all flex items-start gap-4 group cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-md shadow-blue-600/30 group-hover:scale-105 transition-transform">
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-emerald-950 text-base">
+                  <h3 className="font-semibold text-blue-200 text-base">
                     Enviar minha planilha modelo
                   </h3>
-                  <span className="text-xs bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold px-2 py-0.5 rounded-full">
                     Recomendado
                   </span>
                 </div>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                <p className="text-xs text-[#B6C2D4] mt-1 leading-relaxed">
                   Importa suas colunas, categorias existentes e ensina o sistema a reconhecer seus
                   lançamentos habituais.
                 </p>
@@ -474,16 +474,16 @@ export default function Welcome() {
             {/* Option 2: Demo Data */}
             <button
               onClick={handleStartWithDemo}
-              className="w-full p-4 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition-all flex items-start gap-4 group cursor-pointer"
+              className="w-full p-4 rounded-xl border border-white/10 bg-[#101A34] hover:bg-[#202A40] text-left transition-all flex items-start gap-4 group cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-lg bg-blue-500 text-white flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
                 <PlayCircle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 text-sm">
+                <h3 className="font-semibold text-[#F8FAFC] text-sm">
                   Experimentar com dados de exemplo
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-[#B6C2D4] mt-0.5">
                   Preenche o app com transações fictícias para testar gráficos, aprendizado e
                   relatórios.
                 </p>
@@ -493,14 +493,14 @@ export default function Welcome() {
             {/* Option 3: Start from scratch */}
             <button
               onClick={handleStartFresh}
-              className="w-full p-4 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition-all flex items-start gap-4 group cursor-pointer"
+              className="w-full p-4 rounded-xl border border-white/10 bg-[#101A34] hover:bg-[#202A40] text-left transition-all flex items-start gap-4 group cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-xl bg-[#202A40] text-[#B6C2D4] flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
                 <FolderPlus className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 text-sm">Começar do zero</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <h3 className="font-semibold text-[#F8FAFC] text-sm">Começar do zero</h3>
+                <p className="text-xs text-[#B6C2D4] mt-0.5">
                   Inicia com categorias padrão (Alimentação, Moradia, Transporte, etc.) prontas para
                   uso.
                 </p>
@@ -508,7 +508,7 @@ export default function Welcome() {
             </button>
           </CardContent>
 
-          <CardFooter className="justify-center border-t py-4 text-xs text-muted-foreground">
+          <CardFooter className="justify-center border-t border-white/5 py-4 text-xs text-[#94A3B8]">
             Seus dados nunca saem do seu computador. 100% privado e offline.
           </CardFooter>
         </Card>
@@ -516,23 +516,25 @@ export default function Welcome() {
 
       {/* STEP 2: UPLOAD TEMPLATE */}
       {step === 'upload' && (
-        <Card className="w-full max-w-[640px] shadow-lg border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <Upload className="w-5 h-5 text-emerald-600" />
+        <Card className="w-full max-w-[640px] shadow-2xl border-white/10 bg-[#192134] rounded-2xl">
+          <CardHeader className="border-b border-white/5 pb-4">
+            <CardTitle className="text-xl font-bold flex items-center gap-2.5 text-[#F8FAFC]">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <Upload className="w-4 h-4" />
+              </div>
               Enviar Planilha Modelo
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs text-[#B6C2D4]">
               Selecione sua planilha habitual (.xlsx, .csv) com cabeçalhos como Data, Descrição,
               Valor e Categoria.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pt-6">
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleFileUpload}
-              className="border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/20 transition-all rounded-2xl p-8 text-center flex flex-col items-center justify-center cursor-pointer relative"
+              className="border-2 border-dashed border-white/15 hover:border-blue-400 hover:bg-[#202A40]/40 transition-all rounded-2xl p-8 text-center flex flex-col items-center justify-center cursor-pointer relative group"
             >
               <input
                 type="file"
@@ -540,37 +542,47 @@ export default function Welcome() {
                 onChange={handleFileUpload}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
-              <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+              <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
                 <Upload className="w-6 h-6" />
               </div>
-              <p className="font-semibold text-slate-800 text-base">
+              <p className="font-semibold text-[#F8FAFC] text-base">
                 {parsing ? 'Lendo planilha…' : 'Arraste seu arquivo ou clique para procurar'}
               </p>
-              <p className="text-xs text-slate-500 mt-1">
-                Suporta planilhas CSV, XLSX, XLS exportadas do Excel, Google Sheets ou bancos.
+              <p className="text-xs text-[#B6C2D4] mt-1">
+                Suporta planilhas CSV, XLSX, TXT exportadas do Excel, Google Sheets ou bancos.
               </p>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl border text-xs text-slate-600 space-y-1">
-              <p className="font-semibold text-slate-900">Dica de formato:</p>
+            <div className="bg-[#101A34] p-4 rounded-xl border border-white/5 text-xs text-[#B6C2D4] space-y-1.5">
+              <p className="font-semibold text-[#F8FAFC]">Dica de formato:</p>
               <p>
-                O arquivo precisa conter colunas para <strong>Data</strong>,{' '}
-                <strong>Descrição</strong> e <strong>Valor</strong>. A coluna de{' '}
-                <strong>Categoria</strong> é opcional mas recomendada para alimentar o histórico de
-                aprendizado.
+                O arquivo precisa conter colunas para{' '}
+                <strong className="text-[#F8FAFC]">Data</strong>,{' '}
+                <strong className="text-[#F8FAFC]">Descrição</strong> e{' '}
+                <strong className="text-[#F8FAFC]">Valor</strong>. A coluna de{' '}
+                <strong className="text-[#F8FAFC]">Categoria</strong> é opcional mas recomendada
+                para alimentar o histórico de aprendizado.
               </p>
-              <p className="pt-1 border-t border-slate-200/70 mt-2 text-slate-500">
-                Arquivos <strong>.xlsx</strong> binários são lidos com o parser correto (não como
-                texto), evitando caracteres estranhos na prévia.
+              <p className="pt-2 border-t border-white/5 mt-2 text-[#94A3B8]">
+                Arquivos <strong className="text-[#F8FAFC]">.xlsx</strong> binários são lidos com o
+                parser correto (não como texto), evitando caracteres estranhos na prévia.
               </p>
             </div>
           </CardContent>
 
-          <CardFooter className="flex justify-between border-t pt-4">
-            <Button variant="outline" onClick={() => setStep('welcome')}>
+          <CardFooter className="flex justify-between border-t border-white/5 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setStep('welcome')}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
+            >
               Voltar
             </Button>
-            <Button variant="ghost" onClick={handleStartFresh} className="text-xs text-slate-500">
+            <Button
+              variant="ghost"
+              onClick={handleStartFresh}
+              className="text-xs text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-xl h-10"
+            >
               Pular e começar do zero
             </Button>
           </CardFooter>
@@ -579,25 +591,27 @@ export default function Welcome() {
 
       {/* STEP 3: COLUMN MAPPING */}
       {step === 'mapping' && (
-        <Card className="w-full max-w-[720px] shadow-lg border-slate-200">
-          <CardHeader>
+        <Card className="w-full max-w-[720px] shadow-2xl border-white/10 bg-[#192134] rounded-2xl">
+          <CardHeader className="border-b border-white/5 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl font-bold flex items-center gap-2">
-                  <Table className="w-5 h-5 text-emerald-600" />
+                <CardTitle className="text-xl font-bold flex items-center gap-2.5 text-[#F8FAFC]">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                    <Table className="w-4 h-4" />
+                  </div>
                   Mapeamento de Colunas
                 </CardTitle>
-                <CardDescription>
-                  Arquivo: <span className="font-medium text-slate-800">{fileName}</span> (
+                <CardDescription className="text-xs text-[#B6C2D4] mt-1">
+                  Arquivo: <span className="font-medium text-[#F8FAFC]">{fileName}</span> (
                   {rawRows.length} linhas detectadas)
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-6">
-            <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg flex items-center gap-2 text-xs text-emerald-900">
-              <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+          <CardContent className="space-y-6 pt-6">
+            <div className="bg-blue-500/10 border border-blue-500/30 p-3.5 rounded-xl flex items-center gap-2.5 text-xs text-blue-200">
+              <Sparkles className="w-4 h-4 text-blue-400 shrink-0" />
               <span>
                 Detectamos automaticamente as correspondências mais prováveis em português. Ajuste
                 se necessário:
@@ -607,19 +621,19 @@ export default function Welcome() {
             {/* Mapping Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Date */}
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold flex items-center gap-1.5 text-slate-900">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold flex items-center gap-1.5 text-[#F8FAFC]">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
                   Coluna de Data *
                 </Label>
                 <Select
                   value={mapping.dateCol}
                   onValueChange={(val) => setMapping((prev) => ({ ...prev, dateCol: val }))}
                 >
-                  <SelectTrigger className="bg-white">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione a coluna..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     {rawHeaders.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
@@ -630,19 +644,19 @@ export default function Welcome() {
               </div>
 
               {/* Description */}
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold flex items-center gap-1.5 text-slate-900">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold flex items-center gap-1.5 text-[#F8FAFC]">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
                   Coluna de Descrição / Histórico *
                 </Label>
                 <Select
                   value={mapping.descriptionCol}
                   onValueChange={(val) => setMapping((prev) => ({ ...prev, descriptionCol: val }))}
                 >
-                  <SelectTrigger className="bg-white">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione a coluna..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     {rawHeaders.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
@@ -653,19 +667,19 @@ export default function Welcome() {
               </div>
 
               {/* Amount */}
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold flex items-center gap-1.5 text-slate-900">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold flex items-center gap-1.5 text-[#F8FAFC]">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
                   Coluna de Valor (R$) *
                 </Label>
                 <Select
                   value={mapping.amountCol}
                   onValueChange={(val) => setMapping((prev) => ({ ...prev, amountCol: val }))}
                 >
-                  <SelectTrigger className="bg-white">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione a coluna..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     {rawHeaders.map((h) => (
                       <SelectItem key={h} value={h}>
                         {h}
@@ -676,8 +690,8 @@ export default function Welcome() {
               </div>
 
               {/* Category */}
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold text-slate-700">
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold text-[#B6C2D4]">
                   Coluna de Categoria / Grupo (opcional)
                 </Label>
                 <Select
@@ -689,10 +703,10 @@ export default function Welcome() {
                     }))
                   }
                 >
-                  <SelectTrigger className="bg-white">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione se houver..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     <SelectItem value="none">Nenhuma (criar depois)</SelectItem>
                     {rawHeaders.map((h) => (
                       <SelectItem key={h} value={h}>
@@ -704,8 +718,8 @@ export default function Welcome() {
               </div>
 
               {/* Type */}
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold text-slate-700">
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold text-[#B6C2D4]">
                   Coluna de Tipo / D/C (opcional)
                 </Label>
                 <Select
@@ -717,10 +731,10 @@ export default function Welcome() {
                     }))
                   }
                 >
-                  <SelectTrigger className="bg-white">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione se houver..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     <SelectItem value="none">Auto (deduzir por sinal +/-)</SelectItem>
                     {rawHeaders.map((h) => (
                       <SelectItem key={h} value={h}>
@@ -732,8 +746,8 @@ export default function Welcome() {
               </div>
 
               {/* Notes */}
-              <div className="space-y-1.5 bg-slate-50 p-3 rounded-lg border">
-                <Label className="text-xs font-semibold text-slate-700">
+              <div className="space-y-1.5 bg-[#101A34] p-3.5 rounded-xl border border-white/5">
+                <Label className="text-xs font-semibold text-[#B6C2D4]">
                   Coluna de Observação (opcional)
                 </Label>
                 <Select
@@ -745,10 +759,10 @@ export default function Welcome() {
                     }))
                   }
                 >
-                  <SelectTrigger className="bg-white">
+                  <SelectTrigger className="bg-[#192134] text-xs h-10 border-white/10 text-[#F8FAFC] rounded-xl">
                     <SelectValue placeholder="Selecione se houver..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     <SelectItem value="none">Nenhuma</SelectItem>
                     {rawHeaders.map((h) => (
                       <SelectItem key={h} value={h}>
@@ -762,27 +776,30 @@ export default function Welcome() {
 
             {/* Preview table */}
             <div>
-              <Label className="text-xs font-semibold text-slate-700 mb-2 block">
+              <Label className="text-xs font-semibold text-[#B6C2D4] mb-2 block">
                 Prévia dos primeiros registros:
               </Label>
-              <div className="overflow-x-auto border rounded-lg max-h-40 bg-white">
+              <div className="overflow-x-auto border border-white/10 rounded-xl max-h-40 bg-[#101A34]">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 border-b text-slate-700 font-semibold sticky top-0">
+                  <thead className="bg-[#192134] border-b border-white/5 text-[#94A3B8] font-semibold sticky top-0">
                     <tr>
                       {rawHeaders.slice(0, 6).map((h) => (
-                        <th key={h} className="p-2 border-r last:border-r-0 whitespace-nowrap">
+                        <th
+                          key={h}
+                          className="p-2.5 border-r border-white/5 last:border-r-0 whitespace-nowrap"
+                        >
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-white/5">
                     {rawRows.slice(0, 4).map((row, idx) => (
-                      <tr key={idx} className="border-b last:border-b-0 hover:bg-slate-50">
+                      <tr key={idx} className="hover:bg-[#202A40]/50">
                         {rawHeaders.slice(0, 6).map((h) => (
                           <td
                             key={h}
-                            className="p-2 border-r last:border-r-0 whitespace-nowrap text-slate-600"
+                            className="p-2.5 border-r border-white/5 last:border-r-0 whitespace-nowrap text-[#B6C2D4]"
                           >
                             {String(row[h] ?? '')}
                           </td>
@@ -795,13 +812,17 @@ export default function Welcome() {
             </div>
           </CardContent>
 
-          <CardFooter className="flex justify-between border-t pt-4">
-            <Button variant="outline" onClick={() => setStep('upload')}>
+          <CardFooter className="flex justify-between border-t border-white/5 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setStep('upload')}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
+            >
               Voltar
             </Button>
             <Button
               onClick={handleConfirmMapping}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2 rounded-xl h-10 px-5 text-xs font-semibold"
               disabled={!mapping.dateCol || !mapping.descriptionCol || !mapping.amountCol}
             >
               Continuar
@@ -813,45 +834,49 @@ export default function Welcome() {
 
       {/* STEP 4: SEED CONFIRMATION */}
       {step === 'seed' && (
-        <Card className="w-full max-w-[600px] shadow-lg border-slate-200">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+        <Card className="w-full max-w-[600px] shadow-2xl border-white/10 bg-[#192134] rounded-2xl">
+          <CardHeader className="text-center border-b border-white/5 pb-4">
+            <div className="mx-auto w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-3">
               <FileCheck className="w-6 h-6" />
             </div>
-            <CardTitle className="text-xl font-bold">Importar dados da planilha?</CardTitle>
-            <CardDescription className="text-sm">
-              Encontramos <strong>{rawRows.length} lançamentos</strong> no seu arquivo modelo.
+            <CardTitle className="text-xl font-bold text-[#F8FAFC]">
+              Importar dados da planilha?
+            </CardTitle>
+            <CardDescription className="text-sm text-[#B6C2D4] mt-1">
+              Encontramos <strong className="text-[#F8FAFC]">{rawRows.length} lançamentos</strong>{' '}
+              no seu arquivo modelo.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
-            <div className="bg-slate-50 p-4 rounded-xl border space-y-2 text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">O que vai acontecer:</p>
-              <ul className="list-disc list-inside text-xs space-y-1.5 text-slate-600">
+          <CardContent className="space-y-4 pt-6">
+            <div className="bg-[#101A34] p-4 rounded-xl border border-white/5 space-y-2 text-sm text-[#B6C2D4]">
+              <p className="font-semibold text-[#F8FAFC]">O que vai acontecer:</p>
+              <ul className="list-disc list-inside text-xs space-y-1.5 text-[#B6C2D4]">
                 <li>
-                  O formato das suas colunas será salvo como <strong>Template padrão</strong>.
+                  O formato das suas colunas será salvo como{' '}
+                  <strong className="text-[#F8FAFC]">Template padrão</strong>.
                 </li>
                 <li>Categorias encontradas serão cadastradas automaticamente.</li>
                 <li>
                   Cada lançamento com categoria alimentará o{' '}
-                  <strong>motor de correspondência exata</strong> para classificar seus futuros
-                  extratos bancários instantaneamente.
+                  <strong className="text-[#F8FAFC]">motor de correspondência exata</strong> para
+                  classificar seus futuros extratos bancários instantaneamente.
                 </li>
               </ul>
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col sm:flex-row gap-2 justify-between border-t pt-4">
+          <CardFooter className="flex flex-col sm:flex-row gap-2 justify-between border-t border-white/5 pt-4">
             <Button
               variant="outline"
               onClick={() => handleExecuteSeed(false)}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
             >
               Apenas salvar modelo (sem dados)
             </Button>
             <Button
               onClick={() => handleExecuteSeed(true)}
-              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl h-10 px-5 text-xs"
             >
               Importar {rawRows.length} lançamentos
             </Button>
@@ -861,35 +886,37 @@ export default function Welcome() {
 
       {/* STEP 5: DONE */}
       {step === 'done' && (
-        <Card className="w-full max-w-[560px] shadow-lg border-slate-200 text-center">
-          <CardHeader className="pb-4">
-            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
-              <CheckCircle2 className="w-10 h-10" />
+        <Card className="w-full max-w-[560px] shadow-2xl border-white/10 bg-[#192134] rounded-2xl text-center">
+          <CardHeader className="pb-4 border-b border-white/5">
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
-            <CardTitle className="text-2xl font-bold text-slate-900">Tudo pronto!</CardTitle>
-            <CardDescription className="text-base text-slate-600 mt-1">
+            <CardTitle className="text-2xl font-bold text-[#F8FAFC]">Tudo pronto!</CardTitle>
+            <CardDescription className="text-base text-[#B6C2D4] mt-1">
               Seu orçamento pessoal foi configurado com sucesso.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-3 pb-6">
+          <CardContent className="space-y-3 pt-6 pb-6">
             {seedResult && seedResult.imported > 0 && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-950 text-left space-y-1">
-                <p className="font-semibold text-sm">Resumo da importação inicial:</p>
+              <div className="bg-[#101A34] border border-white/5 rounded-xl p-4 text-xs text-[#B6C2D4] text-left space-y-1">
+                <p className="font-semibold text-sm text-[#F8FAFC]">
+                  Resumo da importação inicial:
+                </p>
                 <p>• {seedResult.imported} lançamentos importados com sucesso.</p>
                 <p>• {seedResult.autoClassified} regras exatas aprendidas pelo sistema.</p>
               </div>
             )}
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#94A3B8]">
               Você pode importar extratos bancários (OFX/CSV) a qualquer momento na aba{' '}
-              <strong>Importar</strong>.
+              <strong className="text-[#F8FAFC]">Importar</strong>.
             </p>
           </CardContent>
 
-          <CardFooter className="justify-center border-t pt-6">
+          <CardFooter className="justify-center border-t border-white/5 pt-6">
             <Button
               onClick={() => navigate('/')}
-              className="w-full sm:w-auto px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base py-5"
+              className="w-full sm:w-auto px-8 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl h-12 shadow-sm"
             >
               Ver meu painel &rarr;
             </Button>
@@ -899,27 +926,33 @@ export default function Welcome() {
 
       {/* STEP TEMPLATE: full diagnostic report for a canonical template .xlsx */}
       {step === 'template' && templateResult && (
-        <Card className="w-full max-w-[900px] shadow-lg border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <Layers className="w-5 h-5 text-emerald-600" />
+        <Card className="w-full max-w-[900px] shadow-2xl border-white/10 bg-[#192134] rounded-2xl">
+          <CardHeader className="border-b border-white/5 pb-4">
+            <CardTitle className="text-xl font-bold flex items-center gap-2.5 text-[#F8FAFC]">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <Layers className="w-4 h-4" />
+              </div>
               Relatório de Importação da Planilha Modelo
             </CardTitle>
-            <CardDescription className="text-xs">
-              Arquivo: <span className="font-medium text-slate-800">{fileName}</span> — leitura
+            <CardDescription className="text-xs text-[#B6C2D4] mt-1">
+              Arquivo: <span className="font-medium text-[#F8FAFC]">{fileName}</span> — leitura
               binária da planilha histórica com validação por âncoras e reconciliação de totais.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <TemplateImportReport result={templateResult} />
           </CardContent>
-          <CardFooter className="flex justify-between border-t pt-4">
-            <Button variant="outline" onClick={() => setStep('upload')}>
+          <CardFooter className="flex justify-between border-t border-white/5 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setStep('upload')}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
+            >
               Enviar outro arquivo
             </Button>
             <Button
               onClick={handleTemplateFinish}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2 rounded-xl h-10 px-5 text-xs font-semibold shadow-sm"
             >
               Concluir e ver painel
               <ArrowRight className="w-4 h-4" />

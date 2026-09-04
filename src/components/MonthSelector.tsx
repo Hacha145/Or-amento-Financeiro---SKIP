@@ -39,28 +39,30 @@ export const MonthSelector: React.FC = () => {
   }
 
   return (
-    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border shadow-sm">
+    <div className="flex items-center gap-1.5 bg-[#192134] px-2.5 py-1.5 rounded-xl border border-white/10 shadow-sm">
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-slate-600 hover:text-slate-900"
+        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
         onClick={handlePrev}
         title="Mês anterior"
+        aria-label="Mês anterior"
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
 
       <div className="flex items-center gap-2 min-w-[170px] justify-center px-1">
-        <Calendar className="h-4 w-4 text-emerald-600" />
-        <span className="font-semibold text-slate-800 capitalize text-sm">{monthLabel}</span>
+        <Calendar className="h-4 w-4 text-blue-400" />
+        <span className="font-semibold text-[#F8FAFC] capitalize text-sm">{monthLabel}</span>
       </div>
 
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-slate-600 hover:text-slate-900"
+        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
         onClick={handleNext}
         title="Próximo mês"
+        aria-label="Próximo mês"
       >
         <ChevronRight className="h-4 w-4" />
       </Button>
@@ -68,7 +70,7 @@ export const MonthSelector: React.FC = () => {
       <Button
         variant="secondary"
         size="sm"
-        className="h-7 text-xs font-medium px-2.5 ml-1 text-slate-700 hover:bg-slate-200"
+        className="h-7 text-xs font-medium px-2.5 ml-1 text-[#B6C2D4] hover:text-[#F8FAFC] bg-[#202A40] hover:bg-[#202A40]/80 border border-white/5 rounded-lg"
         onClick={handleToday}
       >
         Hoje

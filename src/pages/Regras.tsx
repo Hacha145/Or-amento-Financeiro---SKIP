@@ -231,37 +231,36 @@ export default function Regras() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto animate-fade-in text-[#F8FAFC]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <ListChecks className="w-6 h-6 text-emerald-600" />
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC] flex items-center gap-2.5">
+            <ListChecks className="w-6 h-6 text-blue-400" />
             Regras de Classificação
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
-            Regras baseadas em <strong>tokens</strong> (palavras completas). "OVOS" nunca casa com
-            "NOVOS" — a correspondência é por token, não por substring. Prioridade menor = avaliada
-            primeiro.
+          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1 max-w-2xl">
+            Regras baseadas em <strong className="text-[#F8FAFC]">tokens</strong> (palavras
+            completas). "OVOS" nunca casa com "NOVOS" — a correspondência é por token, não por
+            substring. Prioridade menor = avaliada primeiro.
           </p>
         </div>
         <Button
           onClick={handleOpenAdd}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 shadow-xs"
+          className="bg-[#047857] hover:bg-[#059669] text-white text-xs gap-1.5 shadow-sm rounded-xl h-10 px-4 font-medium"
         >
           <Plus className="w-4 h-4" />
           Nova Regra
         </Button>
       </div>
-
       {/* Test box */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
-          <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
-            <FlaskConical className="w-4 h-4 text-emerald-600" />
-            Testar regras & auto-diagnóstico
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 border-b border-white/5">
+          <CardTitle className="text-base font-bold flex items-center gap-2 text-[#F8FAFC]">
+            <FlaskConical className="w-4 h-4 text-blue-400" />
+            Testar regras &amp; auto-diagnóstico
           </CardTitle>
-          <CardDescription className="text-xs">
+          <CardDescription className="text-xs text-[#B6C2D4]">
             Digite uma descrição para ver quais regras correspondem, e rode os testes obrigatórios
             da Parte 3 do prompt.
           </CardDescription>
@@ -272,7 +271,7 @@ export default function Regras() {
               placeholder="Ex: MERCADO LIVRE NOVOS"
               value={testText}
               onChange={(e) => setTestText(e.target.value)}
-              className="text-xs flex-1"
+              className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl flex-1 placeholder:text-[#94A3B8]"
             />
             <Button
               variant="outline"
@@ -282,35 +281,40 @@ export default function Regras() {
                 if (rule) handleTestRule(rule)
                 else toast({ title: 'Crie uma regra primeiro', variant: 'destructive' })
               }}
-              className="text-xs"
+              className="text-xs h-10 border-white/10 bg-[#202A40] text-[#F8FAFC] hover:bg-[#202A40]/80 rounded-xl"
             >
               Testar contra todas
             </Button>
-            <Button variant="outline" size="sm" onClick={handleRunTests} className="text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRunTests}
+              className="text-xs h-10 border-white/10 bg-[#202A40] text-blue-300 hover:bg-[#202A40]/80 rounded-xl"
+            >
               Rodar testes (Parte 3)
             </Button>
           </div>
 
           {testResults && (
-            <div className="space-y-1 text-xs">
-              <div className="font-semibold text-slate-700 mb-1">
+            <div className="space-y-1.5 text-xs pt-1">
+              <div className="font-semibold text-[#B6C2D4] mb-1">
                 Resultado do teste "{testText}":
               </div>
               {testResults.length === 0 && (
-                <div className="text-slate-500">Nenhuma regra cadastrada.</div>
+                <div className="text-[#94A3B8]">Nenhuma regra cadastrada.</div>
               )}
               {testResults.map((r) => (
                 <div
                   key={r.ruleId}
-                  className="flex items-center gap-2 px-2 py-1 rounded bg-slate-50"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#101A34] border border-white/5"
                 >
                   {r.matches ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                   ) : (
-                    <XCircle className="w-3.5 h-3.5 text-slate-300" />
+                    <XCircle className="w-3.5 h-3.5 text-slate-500" />
                   )}
-                  <span className="font-medium text-slate-800">{r.ruleName}</span>
-                  <span className={r.matches ? 'text-emerald-700' : 'text-slate-400'}>
+                  <span className="font-medium text-[#F8FAFC]">{r.ruleName}</span>
+                  <span className={r.matches ? 'text-emerald-400 font-semibold' : 'text-[#94A3B8]'}>
                     {r.matches ? 'correspondeu' : 'não correspondeu'}
                   </span>
                 </div>
@@ -319,23 +323,28 @@ export default function Regras() {
           )}
 
           {testSummary && (
-            <div className="space-y-2 text-xs border-t pt-3">
-              <div className="font-semibold text-slate-700">
-                Testes obrigatórios (Parte 3): {testSummary.passed}/{testSummary.total} passaram
+            <div className="space-y-2 text-xs border-t border-white/5 pt-3">
+              <div className="font-semibold text-[#B6C2D4]">
+                Testes obrigatórios (Parte 3):{' '}
+                <span className="text-emerald-400">{testSummary.passed}</span>/{testSummary.total}{' '}
+                passaram
                 {testSummary.failed > 0 && (
-                  <span className="text-rose-600"> · {testSummary.failed} falharam</span>
+                  <span className="text-rose-400 font-bold"> · {testSummary.failed} falharam</span>
                 )}
               </div>
               {testSummary.results.map((r) => (
-                <div key={r.id} className="flex items-start gap-2 px-2 py-1.5 rounded bg-slate-50">
+                <div
+                  key={r.id}
+                  className="flex items-start gap-2.5 px-3 py-2 rounded-xl bg-[#101A34] border border-white/5"
+                >
                   {r.pass ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
                   ) : (
-                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 mt-0.5 shrink-0" />
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400 mt-0.5 shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <div className="font-medium text-slate-800">{r.description}</div>
-                    <div className="text-[11px] text-slate-500">{r.detail}</div>
+                    <div className="font-medium text-[#F8FAFC]">{r.description}</div>
+                    <div className="text-[11px] text-[#94A3B8]">{r.detail}</div>
                   </div>
                 </div>
               ))}
@@ -343,26 +352,26 @@ export default function Regras() {
           )}
         </CardContent>
       </Card>
-
       {/* Rules table */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
-          <CardTitle className="text-base font-bold text-slate-900">
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm overflow-hidden">
+        <CardHeader className="pb-3 border-b border-white/5">
+          <CardTitle className="text-base font-bold text-[#F8FAFC]">
             Regras ({sortedRules.length})
           </CardTitle>
-          <CardDescription className="text-xs">
+          <CardDescription className="text-xs text-[#B6C2D4]">
             Avaliadas em ordem de prioridade. A primeira regra que casa vence.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {sortedRules.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500">
-              Nenhuma regra cadastrada. Clique em <strong>Nova Regra</strong> para criar a primeira.
+            <div className="p-8 text-center text-xs text-[#94A3B8]">
+              Nenhuma regra cadastrada. Clique em{' '}
+              <strong className="text-[#F8FAFC]">Nova Regra</strong> para criar a primeira.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-white/5">
               {/* Header row */}
-              <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2 text-[10px] font-semibold uppercase text-slate-400 bg-slate-50">
+              <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2 text-[10px] font-semibold uppercase text-[#94A3B8] bg-[#101A34]">
                 <div className="col-span-1">Prio</div>
                 <div className="col-span-3">Regra</div>
                 <div className="col-span-3">Correspondência</div>
@@ -375,19 +384,22 @@ export default function Regras() {
                 return (
                   <div
                     key={rule.id}
-                    className={`grid grid-cols-1 sm:grid-cols-12 gap-2 px-4 py-3 text-xs items-center ${
-                      !isActive ? 'opacity-50' : ''
+                    className={`grid grid-cols-1 sm:grid-cols-12 gap-2 px-4 py-3 text-xs items-center hover:bg-[#202A40]/40 transition-colors ${
+                      !isActive ? 'opacity-40' : ''
                     }`}
                   >
                     <div className="sm:col-span-1 flex items-center gap-1">
-                      <Badge variant="outline" className="text-[10px] font-mono px-1.5">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-mono px-1.5 bg-[#101A34] text-[#B6C2D4] border-white/10"
+                      >
                         {rule.priority}
                       </Badge>
                       <div className="flex flex-col">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-4 w-4 p-0"
+                          className="h-4 w-4 p-0 text-[#94A3B8] hover:text-[#F8FAFC]"
                           onClick={() => handlePriority(rule, -1)}
                           title="Diminuir prioridade"
                         >
@@ -396,7 +408,7 @@ export default function Regras() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-4 w-4 p-0"
+                          className="h-4 w-4 p-0 text-[#94A3B8] hover:text-[#F8FAFC]"
                           onClick={() => handlePriority(rule, 1)}
                           title="Aumentar prioridade"
                         >
@@ -405,32 +417,32 @@ export default function Regras() {
                       </div>
                     </div>
                     <div className="sm:col-span-3">
-                      <div className="font-semibold text-slate-900">{rule.name}</div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="font-semibold text-[#F8FAFC]">{rule.name}</div>
+                      <div className="text-[10px] text-[#94A3B8]">
                         {rule.applicationCount ?? 0}x aplicada
                       </div>
                     </div>
-                    <div className="sm:col-span-3 font-mono text-[11px] text-slate-600">
+                    <div className="sm:col-span-3 font-mono text-[11px] text-[#B6C2D4]">
                       {rule.condition.field}{' '}
-                      <span className="text-emerald-700">{rule.condition.operator}</span>{' '}
-                      <span className="bg-slate-100 px-1.5 py-0.5 rounded">
+                      <span className="text-blue-400">{rule.condition.operator}</span>{' '}
+                      <span className="bg-[#101A34] border border-white/5 px-1.5 py-0.5 rounded text-[#F8FAFC]">
                         '{normalizeRaw(rule.condition.value) || rule.condition.value}'
                       </span>
                     </div>
                     <div className="sm:col-span-3">
                       {target ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
                           {target.name}
                         </span>
                       ) : (
-                        <span className="text-rose-600 text-[11px]">item ausente</span>
+                        <span className="text-rose-400 text-[11px]">item ausente</span>
                       )}
                     </div>
                     <div className="sm:col-span-2 flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 text-xs"
+                        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                         onClick={() => handleViewAffected(rule)}
                         title="Ver transações afetadas"
                       >
@@ -439,18 +451,18 @@ export default function Regras() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 text-xs"
+                        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                         onClick={() => handleToggleActive(rule)}
                         title={isActive ? 'Desativar' : 'Ativar'}
                       >
                         <Power
-                          className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`}
+                          className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-400' : 'text-[#94A3B8]'}`}
                         />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 text-xs text-slate-600"
+                        className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                         onClick={() => handleOpenEdit(rule)}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -458,7 +470,7 @@ export default function Regras() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 text-xs text-rose-600 hover:bg-rose-50"
+                        className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
                         onClick={() => handleDelete(rule)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -471,39 +483,41 @@ export default function Regras() {
           )}
         </CardContent>
       </Card>
-
       {/* Affected transactions dialog */}
       <Dialog open={affectedTxs !== null} onOpenChange={(o) => !o && setAffectedTxs(null)}>
-        <DialogContent className="sm:max-w-[560px]">
+        <DialogContent className="sm:max-w-[560px] bg-[#192134] text-[#F8FAFC] border border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <ListChecks className="w-5 h-5 text-emerald-600" />
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-[#F8FAFC]">
+              <ListChecks className="w-5 h-5 text-blue-400" />
               Transações afetadas
             </DialogTitle>
           </DialogHeader>
-          <div className="text-xs text-slate-600 max-h-96 overflow-y-auto">
+          <div className="text-xs text-[#B6C2D4] max-h-96 overflow-y-auto">
             {affectedTxs && affectedTxs.length === 0 && (
-              <div className="p-4 text-center text-slate-500">
+              <div className="p-4 text-center text-[#94A3B8]">
                 Nenhuma transação existente corresponde a esta regra.
               </div>
             )}
             {affectedTxs && affectedTxs.length > 0 && (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-white/5">
                 {affectedTxs.slice(0, 100).map((t) => (
-                  <div key={t.id} className="px-2 py-2 flex items-center justify-between gap-2">
+                  <div
+                    key={t.id}
+                    className="px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-[#202A40]/40 rounded-lg"
+                  >
                     <div className="min-w-0">
-                      <div className="font-medium text-slate-900 truncate">{t.description}</div>
-                      <div className="text-[10px] text-slate-500">
+                      <div className="font-medium text-[#F8FAFC] truncate">{t.description}</div>
+                      <div className="text-[10px] text-[#94A3B8]">
                         {t.date} · {t.type === 'income' ? 'Receita' : 'Despesa'}
                       </div>
                     </div>
-                    <div className="font-semibold text-slate-700 text-xs whitespace-nowrap">
+                    <div className="font-semibold text-[#F8FAFC] text-xs whitespace-nowrap tabular-nums">
                       R$ {t.amount.toFixed(2).replace('.', ',')}
                     </div>
                   </div>
                 ))}
                 {affectedTxs.length > 100 && (
-                  <div className="px-2 py-2 text-center text-[11px] text-slate-400">
+                  <div className="px-2 py-2 text-center text-[11px] text-[#94A3B8]">
                     +{affectedTxs.length - 100} transação(ões)...
                   </div>
                 )}
@@ -511,51 +525,55 @@ export default function Regras() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setAffectedTxs(null)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAffectedTxs(null)}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
+            >
               Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Add / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px] bg-[#192134] text-[#F8FAFC] border border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <ListChecks className="w-5 h-5 text-emerald-600" />
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-[#F8FAFC]">
+              <ListChecks className="w-5 h-5 text-blue-400" />
               {editingRule ? 'Editar Regra' : 'Nova Regra'}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-3 pt-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Nome da regra</Label>
+              <Label className="text-xs text-[#B6C2D4]">Nome da regra</Label>
               <Input
                 placeholder="Ex: Mercado Livre → Compras marketplace"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="text-xs"
+                className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Prioridade (menor = antes)</Label>
+                <Label className="text-xs text-[#B6C2D4]">Prioridade (menor = antes)</Label>
                 <Input
                   type="number"
                   min={1}
                   value={priority}
                   onChange={(e) => setPriority(Number(e.target.value))}
-                  className="text-xs"
+                  className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Status</Label>
+                <Label className="text-xs text-[#B6C2D4]">Status</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as 'active' | 'inactive')}>
-                  <SelectTrigger className="text-xs">
+                  <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     <SelectItem value="active">Ativa</SelectItem>
                     <SelectItem value="inactive">Inativa</SelectItem>
                   </SelectContent>
@@ -564,12 +582,12 @@ export default function Regras() {
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Campo</Label>
+                <Label className="text-xs text-[#B6C2D4]">Campo</Label>
                 <Select value={field} onValueChange={setField}>
-                  <SelectTrigger className="text-xs">
+                  <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     {FIELDS.map((f) => (
                       <SelectItem key={f.value} value={f.value}>
                         {f.label}
@@ -579,12 +597,12 @@ export default function Regras() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Operador</Label>
+                <Label className="text-xs text-[#B6C2D4]">Operador</Label>
                 <Select value={operator} onValueChange={setOperator}>
-                  <SelectTrigger className="text-xs">
+                  <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                     {OPERATORS.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {o.label}
@@ -594,27 +612,28 @@ export default function Regras() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Valor</Label>
+                <Label className="text-xs text-[#B6C2D4]">Valor</Label>
                 <Input
                   placeholder="OVOS"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                   required
-                  className="text-xs"
+                  className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                 />
               </div>
             </div>
-            <div className="text-[11px] text-slate-500 bg-slate-50 rounded p-2 leading-relaxed">
-              <strong>Token-based:</strong> "contém OVOS" casa só com a palavra completa "OVOS"
-              (token). Nunca casa com "NOVOS". Para frases, use o texto completo ("MERCADO LIVRE").
+            <div className="text-[11px] text-[#B6C2D4] bg-[#101A34] border border-white/5 rounded-xl p-3 leading-relaxed">
+              <strong className="text-[#F8FAFC]">Token-based:</strong> "contém OVOS" casa só com a
+              palavra completa "OVOS" (token). Nunca casa com "NOVOS". Para frases, use o texto
+              completo ("MERCADO LIVRE").
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Item de destino</Label>
+              <Label className="text-xs text-[#B6C2D4]">Item de destino</Label>
               <Select value={itemId} onValueChange={setItemId}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                   <SelectValue placeholder="Selecione o item..." />
                 </SelectTrigger>
-                <SelectContent className="max-h-72">
+                <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10 max-h-72">
                   {financialItems.map((it) => (
                     <SelectItem key={it.id} value={it.id}>
                       {it.name}
@@ -624,8 +643,8 @@ export default function Regras() {
               </Select>
             </div>
             {value && field === 'description' && (
-              <div className="text-[11px] text-slate-600 bg-emerald-50 border border-emerald-200 rounded p-2">
-                <strong>Pré-visualização:</strong>{' '}
+              <div className="text-[11px] text-[#B6C2D4] bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                <strong className="text-blue-300">Pré-visualização:</strong>{' '}
                 {(() => {
                   const fakeRule = {
                     condition: {
@@ -639,15 +658,19 @@ export default function Regras() {
                   return sample.map((s) => {
                     const r = testRuleAgainstDescription(fakeRule, s)
                     return (
-                      <div key={s} className="flex items-center gap-1.5">
+                      <div key={s} className="flex items-center gap-1.5 mt-1">
                         {r.matches ? (
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                         ) : (
-                          <XCircle className="w-3 h-3 text-slate-300" />
+                          <XCircle className="w-3 h-3 text-slate-500" />
                         )}
-                        <span className="font-mono">"{s}"</span>
-                        <span className={r.matches ? 'text-emerald-700' : 'text-slate-400'}>
-                          {r.matches ? 'casa' : 'não casa'}
+                        <span className="font-mono text-[#F8FAFC]">"{s}"</span>
+                        <span
+                          className={
+                            r.matches ? 'text-emerald-400 font-semibold' : 'text-[#94A3B8]'
+                          }
+                        >
+                          {r.matches ? 'corresponde' : 'ignora'}
                         </span>
                       </div>
                     )
@@ -655,26 +678,27 @@ export default function Regras() {
                 })()}
               </div>
             )}
-            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <DialogFooter className="gap-2 sm:gap-2 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setDialogOpen(false)}
+                className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 text-xs font-semibold"
               >
                 Salvar Regra
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+      </Dialog>{' '}
     </div>
   )
 }

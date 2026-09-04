@@ -264,10 +264,12 @@ export const NewTransactionDialog: React.FC<NewTransactionDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] max-h-[92vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[560px] max-h-[92vh] overflow-y-auto bg-[#192134] text-[#F8FAFC] border border-white/10 shadow-2xl rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-            <PlusCircle className="w-5 h-5 text-emerald-600" />
+          <DialogTitle className="flex items-center gap-2.5 text-lg font-bold text-[#F8FAFC]">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <PlusCircle className="w-4 h-4" />
+            </div>
             {duplicateFrom ? 'Duplicar Lançamento' : 'Novo Lançamento'}
           </DialogTitle>
         </DialogHeader>
@@ -275,17 +277,19 @@ export const NewTransactionDialog: React.FC<NewTransactionDialogProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           {/* Type selector */}
           <div>
-            <Label className="mb-1.5 block">Tipo</Label>
+            <Label className="mb-1.5 block text-xs font-semibold text-[#B6C2D4] uppercase tracking-wider">
+              Tipo
+            </Label>
             <div className="grid grid-cols-3 gap-2">
               {TYPE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setType(opt.value)}
-                  className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-md text-xs font-medium transition-all border ${
+                  className={`flex items-center justify-center gap-1.5 py-2 px-1.5 rounded-xl text-xs font-medium transition-all border ${
                     type === opt.value
-                      ? 'bg-slate-900 text-white border-slate-900'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30 font-semibold'
+                      : 'bg-[#101A34] text-[#B6C2D4] border-white/5 hover:bg-[#202A40] hover:text-[#F8FAFC]'
                   }`}
                 >
                   {opt.icon}
@@ -562,26 +566,34 @@ export const NewTransactionDialog: React.FC<NewTransactionDialogProps> = ({
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#101A34] px-3.5 py-2.5">
             <div>
-              <Label htmlFor="tx-review" className="text-sm font-medium">
+              <Label htmlFor="tx-review" className="text-sm font-medium text-[#F8FAFC]">
                 Marcar para revisão
               </Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-[#94A3B8]">
                 Deixe ligado para revisar a classificação depois.
               </p>
             </div>
             <Switch id="tx-review" checked={needsReview} onCheckedChange={setNeedsReview} />
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2 sm:gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-11"
+            >
               Cancelar
             </Button>
-            <Button type="submit" className="bg-slate-900 hover:bg-slate-800">
+            <Button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl h-11 px-5 shadow-sm"
+            >
               {duplicateFrom ? (
                 <>
-                  <Copy className="w-4 h-4 mr-1" /> Duplicar
+                  <Copy className="w-4 h-4 mr-1.5" /> Duplicar
                 </>
               ) : (
                 'Salvar Lançamento'

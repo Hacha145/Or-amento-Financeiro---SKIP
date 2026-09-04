@@ -182,24 +182,26 @@ export default function Hierarchy() {
     financialCategories.filter((c) => c.classId === classId)
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto animate-fade-in">
+    <div className="space-y-6 max-w-5xl mx-auto animate-fade-in text-[#F8FAFC]">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <Layers className="w-6 h-6 text-emerald-600" /> Hierarquia Financeira
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC] flex items-center gap-2.5">
+            <Layers className="w-6 h-6 text-blue-400" /> Hierarquia Financeira
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Estrutura de 3 níveis: <strong>Classe</strong> → <strong>Categoria</strong> →{' '}
-            <strong>Item</strong>. Itens são as folhas onde as transações classificam.
+          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
+            Estrutura de 3 níveis: <strong className="text-[#F8FAFC]">Classe</strong> →{' '}
+            <strong className="text-[#F8FAFC]">Categoria</strong> →{' '}
+            <strong className="text-[#F8FAFC]">Item</strong>. Itens são as folhas onde as transações
+            classificam.
           </p>
         </div>
-        <div className="relative w-64">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <div className="relative w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8]" />
           <Input
             placeholder="Buscar item, alias, palavra-chave..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9 text-xs"
+            className="pl-9 h-10 text-xs bg-[#192134] text-[#F8FAFC] border-white/10 rounded-xl placeholder:text-[#94A3B8]"
           />
         </div>
       </div>
@@ -209,25 +211,39 @@ export default function Hierarchy() {
           const items = visibleItems.filter((i) => i.classId === cls.id)
           const isExpanded = expanded.has(cls.id)
           return (
-            <Card key={cls.id} className="border-slate-200/80 shadow-xs">
-              <CardHeader className="p-4 cursor-pointer" onClick={() => toggleExpanded(cls.id)}>
+            <Card
+              key={cls.id}
+              className="border-white/10 bg-[#192134] rounded-2xl shadow-sm overflow-hidden"
+            >
+              <CardHeader
+                className="p-4 cursor-pointer hover:bg-[#202A40]/40 transition-colors"
+                onClick={() => toggleExpanded(cls.id)}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      <ChevronDown className="w-4 h-4 text-[#94A3B8]" />
                     ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     )}
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: cls.color }} />
-                    <CardTitle className="text-base font-bold">{cls.label}</CardTitle>
-                    <Badge variant="secondary" className="text-[10px]">
+                    <span
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: cls.color }}
+                    />
+                    <CardTitle className="text-base font-bold text-[#F8FAFC]">
+                      {cls.label}
+                    </CardTitle>
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] bg-[#101A34] text-[#B6C2D4] border border-white/5"
+                    >
                       {items.length} itens
                     </Badge>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="text-xs h-8"
+                    className="text-xs h-8 border-white/10 bg-[#202A40] text-[#F8FAFC] hover:bg-[#202A40]/80 rounded-xl"
                     onClick={(e) => {
                       e.stopPropagation()
                       startNew(cls.id)
@@ -238,85 +254,85 @@ export default function Hierarchy() {
                 </div>
               </CardHeader>
               {isExpanded && (
-                <CardContent className="p-0">
+                <CardContent className="p-0 border-t border-white/5">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-50 border-y text-slate-600 font-semibold uppercase tracking-wider text-[10px]">
+                    <thead className="bg-[#101A34] text-[#94A3B8] font-semibold uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="p-2.5 text-left">Item</th>
-                        <th className="p-2.5 text-left">Categoria</th>
-                        <th className="p-2.5 text-left">Palavras-chave</th>
-                        <th className="p-2.5 text-left">Aliases</th>
-                        <th className="p-2.5 text-center">Ativo</th>
-                        <th className="p-2.5 text-right">Ações</th>
+                        <th className="p-3 text-left">Item</th>
+                        <th className="p-3 text-left">Categoria</th>
+                        <th className="p-3 text-left">Palavras-chave</th>
+                        <th className="p-3 text-left">Aliases</th>
+                        <th className="p-3 text-center">Ativo</th>
+                        <th className="p-3 text-right">Ações</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-white/5">
                       {items.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="p-4 text-center text-slate-400">
+                          <td colSpan={6} className="p-4 text-center text-[#94A3B8]">
                             Nenhum item.
                           </td>
                         </tr>
                       )}
                       {items.map((it) => (
-                        <tr key={it.id} className="hover:bg-slate-50/60">
-                          <td className="p-2.5">
+                        <tr key={it.id} className="hover:bg-[#202A40]/60 transition-colors">
+                          <td className="p-3">
                             <div className="flex items-center gap-2">
                               <span
-                                className="w-2.5 h-2.5 rounded-full"
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
                                 style={{ backgroundColor: it.color }}
                               />
-                              <span className="font-medium text-slate-900">{it.name}</span>
+                              <span className="font-medium text-[#F8FAFC]">{it.name}</span>
                             </div>
                           </td>
-                          <td className="p-2.5 text-slate-500">
+                          <td className="p-3 text-[#B6C2D4]">
                             {it.categoryId
                               ? (financialCategories.find((c) => c.id === it.categoryId)?.name ??
                                 '—')
                               : '—'}
                           </td>
-                          <td className="p-2.5 text-slate-500">
+                          <td className="p-3 text-[#B6C2D4]">
                             <div className="flex flex-wrap gap-1">
                               {it.keywords.slice(0, 4).map((k, i) => (
                                 <span
                                   key={i}
-                                  className="text-[10px] bg-slate-100 rounded px-1.5 py-0.5"
+                                  className="text-[10px] bg-[#101A34] text-[#B6C2D4] border border-white/5 rounded px-1.5 py-0.5"
                                 >
                                   {k}
                                 </span>
                               ))}
                               {it.keywords.length > 4 && (
-                                <span className="text-[10px] text-slate-400">
+                                <span className="text-[10px] text-[#94A3B8]">
                                   +{it.keywords.length - 4}
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="p-2.5 text-slate-500">
+                          <td className="p-3 text-[#B6C2D4]">
                             <div className="flex flex-wrap gap-1">
                               {it.aliases.map((a, i) => (
                                 <span
                                   key={i}
-                                  className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 rounded px-1.5 py-0.5"
+                                  className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded px-1.5 py-0.5"
                                 >
                                   {a}
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td className="p-2.5 text-center">
+                          <td className="p-3 text-center">
                             <Switch
                               checked={it.active}
                               onCheckedChange={(v) => updateFinancialItem(it.id, { active: v })}
                               aria-label="Ativo"
                             />
                           </td>
-                          <td className="p-2.5 text-right">
+                          <td className="p-3 text-right">
                             <div className="flex justify-end gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7"
+                                className="h-8 w-8 text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                                 onClick={() => startEdit(it)}
                                 title="Editar"
                               >
@@ -325,7 +341,7 @@ export default function Hierarchy() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-rose-600 hover:bg-rose-50"
+                                className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
                                 onClick={() => remove(it.id)}
                                 title="Excluir"
                               >
@@ -346,30 +362,33 @@ export default function Hierarchy() {
 
       {/* Edit / create dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto bg-[#192134] text-[#F8FAFC] border border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle>{editing?.id ? 'Editar item' : 'Novo item'}</DialogTitle>
+            <DialogTitle className="text-base font-bold text-[#F8FAFC]">
+              {editing?.id ? 'Editar item' : 'Novo item'}
+            </DialogTitle>
           </DialogHeader>
           {editing && (
-            <div className="space-y-4">
+            <div className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label>Nome</Label>
+                <Label className="text-xs text-[#B6C2D4]">Nome</Label>
                 <Input
                   value={editing.name}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Classe</Label>
+                  <Label className="text-xs text-[#B6C2D4]">Classe</Label>
                   <Select
                     value={editing.classId}
                     onValueChange={(v) => setEditing({ ...editing, classId: v, categoryId: null })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                       {financialClasses.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.label}
@@ -379,15 +398,15 @@ export default function Hierarchy() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Categoria (opcional)</Label>
+                  <Label className="text-xs text-[#B6C2D4]">Categoria (opcional)</Label>
                   <Select
                     value={editing.categoryId ?? ''}
                     onValueChange={(v) => setEditing({ ...editing, categoryId: v || null })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl">
                       <SelectValue placeholder="—" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-[#192134] text-[#F8FAFC] border-white/10">
                       <SelectItem value="">—</SelectItem>
                       {categoriesInClass(editing.classId).map((c) => (
                         <SelectItem key={c.id} value={c.id}>
@@ -399,21 +418,23 @@ export default function Hierarchy() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Cor</Label>
-                <div className="flex flex-wrap gap-2">
+                <Label className="text-xs text-[#B6C2D4]">Cor</Label>
+                <div className="flex flex-wrap gap-2 pt-1">
                   {PALETTE_COLORS.map((col) => (
                     <button
                       key={col}
                       type="button"
                       onClick={() => setEditing({ ...editing, color: col })}
-                      className={`w-6 h-6 rounded-full border-2 ${editing.color === col ? 'border-slate-900' : 'border-transparent'}`}
+                      className={`w-7 h-7 rounded-full border-2 transition-transform ${editing.color === col ? 'border-blue-400 scale-110' : 'border-transparent opacity-80 hover:opacity-100'}`}
                       style={{ backgroundColor: col }}
                     />
                   ))}
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Palavras-chave (para classificação automática)</Label>
+                <Label className="text-xs text-[#B6C2D4]">
+                  Palavras-chave (para classificação automática)
+                </Label>
                 <div className="flex gap-2">
                   <Input
                     value={keywordInput}
@@ -425,16 +446,22 @@ export default function Hierarchy() {
                       }
                     }}
                     placeholder="Ex: mercado, compra"
+                    className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                   />
-                  <Button type="button" size="sm" onClick={addKeyword}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={addKeyword}
+                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 text-xs font-medium"
+                  >
                     Adicionar
                   </Button>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {editing.keywords.map((k, i) => (
                     <span
                       key={i}
-                      className="text-[11px] bg-slate-100 rounded px-2 py-0.5 flex items-center gap-1"
+                      className="text-[11px] bg-[#101A34] text-[#B6C2D4] border border-white/5 rounded-lg px-2 py-0.5 flex items-center gap-1.5"
                     >
                       {k}
                       <button
@@ -446,14 +473,14 @@ export default function Hierarchy() {
                           })
                         }
                       >
-                        <X className="w-3 h-3 text-slate-400" />
+                        <X className="w-3 h-3 text-[#94A3B8] hover:text-[#F8FAFC]" />
                       </button>
                     </span>
                   ))}
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Aliases (nomes históricos)</Label>
+                <Label className="text-xs text-[#B6C2D4]">Aliases (nomes históricos)</Label>
                 <div className="flex gap-2">
                   <Input
                     value={aliasInput}
@@ -465,16 +492,22 @@ export default function Hierarchy() {
                       }
                     }}
                     placeholder="Ex: IPVA+Licenciamento"
+                    className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                   />
-                  <Button type="button" size="sm" onClick={addAlias}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={addAlias}
+                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 text-xs font-medium"
+                  >
                     Adicionar
                   </Button>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {editing.aliases.map((a, i) => (
                     <span
                       key={i}
-                      className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded px-2 py-0.5 flex items-center gap-1"
+                      className="text-[11px] bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-lg px-2 py-0.5 flex items-center gap-1.5"
                     >
                       {a}
                       <button
@@ -486,7 +519,7 @@ export default function Hierarchy() {
                           })
                         }
                       >
-                        <X className="w-3 h-3 text-amber-500" />
+                        <X className="w-3 h-3 text-amber-400 hover:text-amber-200" />
                       </button>
                     </span>
                   ))}
@@ -494,7 +527,7 @@ export default function Hierarchy() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>Válido de (ano)</Label>
+                  <Label className="text-xs text-[#B6C2D4]">Válido de (ano)</Label>
                   <Input
                     type="number"
                     value={editing.validFrom ?? ''}
@@ -505,10 +538,11 @@ export default function Hierarchy() {
                       })
                     }
                     placeholder="Ex: 2023"
+                    className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Válido até (ano)</Label>
+                  <Label className="text-xs text-[#B6C2D4]">Válido até (ano)</Label>
                   <Input
                     type="number"
                     value={editing.validTo ?? ''}
@@ -519,11 +553,14 @@ export default function Hierarchy() {
                       })
                     }
                     placeholder="Ex: 2025"
+                    className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-md border px-3 py-2">
-                <Label htmlFor="item-active">Ativo</Label>
+              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#101A34] px-3.5 py-2.5">
+                <Label htmlFor="item-active" className="text-xs text-[#F8FAFC]">
+                  Ativo
+                </Label>
                 <Switch
                   id="item-active"
                   checked={editing.active}
@@ -532,12 +569,19 @@ export default function Hierarchy() {
               </div>
             </div>
           )}
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setEditing(null)}>
+          <DialogFooter className="gap-2 sm:gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setEditing(null)}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
+            >
               Cancelar
             </Button>
-            <Button onClick={save} className="bg-slate-900 hover:bg-slate-800">
-              <Check className="w-4 h-4 mr-1" /> Salvar
+            <Button
+              onClick={save}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 text-xs font-semibold"
+            >
+              <Check className="w-4 h-4 mr-1.5" /> Salvar
             </Button>
           </DialogFooter>
         </DialogContent>

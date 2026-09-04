@@ -271,27 +271,29 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
+    <div className="space-y-6 animate-fade-in max-w-4xl mx-auto text-[#F8FAFC]">
       {/* Title */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Configurações & Backup</h1>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
+          Configurações &amp; Backup
+        </h1>
+        <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
           Gerencie o formato da sua planilha modelo, regras de contabilidade e cópias de segurança
         </p>
       </div>
 
       {/* Duplication & Credit Card Settings */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 border-b border-white/5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-amber-100 text-amber-800">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-300">
               <CreditCard className="w-5 h-5" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold text-slate-900">
-                Fatura de Cartão & Dupla Contagem
+              <CardTitle className="text-base font-bold text-[#F8FAFC]">
+                Fatura de Cartão &amp; Dupla Contagem
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs text-[#B6C2D4]">
                 Controle como os pagamentos de fatura são contabilizados nos totais de despesas
               </CardDescription>
             </div>
@@ -299,23 +301,27 @@ export default function Settings() {
         </CardHeader>
 
         <CardContent className="p-5 space-y-4">
-          <div className="flex items-center justify-between gap-4 p-3.5 bg-slate-50 rounded-xl border">
+          <div className="flex items-center justify-between gap-4 p-3.5 bg-[#101A34] rounded-xl border border-white/5">
             <div className="space-y-1 pr-4">
               <div className="flex items-center gap-2">
                 <Label
                   htmlFor="cc-toggle"
-                  className="text-xs font-semibold text-slate-900 cursor-pointer"
+                  className="text-xs font-semibold text-[#F8FAFC] cursor-pointer"
                 >
                   Incluir pagamento de fatura nas despesas do Dashboard
                 </Label>
-                <Badge variant="outline" className="text-[10px] text-slate-500">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] text-[#94A3B8] border-white/10 bg-[#192134]"
+                >
                   Padrão: Desativado
                 </Badge>
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Quando <strong>desativado</strong> (recomendado), pagamentos de fatura ("Pagamento
-                recebido", "Pgto fatura", etc.) são marcados e excluídos da soma de despesas para
-                evitar duplicar os gastos que já foram lançados individualmente.
+              <p className="text-[11px] text-[#B6C2D4] leading-relaxed">
+                Quando <strong className="text-[#F8FAFC]">desativado</strong> (recomendado),
+                pagamentos de fatura ("Pagamento recebido", "Pgto fatura", etc.) são marcados e
+                excluídos da soma de despesas para evitar duplicar os gastos que já foram lançados
+                individualmente.
               </p>
             </div>
 
@@ -337,18 +343,18 @@ export default function Settings() {
       </Card>
 
       {/* Template Configuration Section */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 border-b border-white/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div>
-                <CardTitle className="text-base font-bold text-slate-900">
-                  Planilha Modelo & Mapeamento de Colunas
+                <CardTitle className="text-base font-bold text-[#F8FAFC]">
+                  Planilha Modelo &amp; Mapeamento de Colunas
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-[#B6C2D4]">
                   Define como seus arquivos são lidos e exportados de volta para sua planilha
                 </CardDescription>
               </div>
@@ -358,7 +364,7 @@ export default function Settings() {
               variant="outline"
               size="sm"
               onClick={() => navigate('/boas-vindas')}
-              className="text-xs text-emerald-800 border-emerald-300 hover:bg-emerald-50"
+              className="text-xs h-9 border-white/10 bg-[#202A40] text-blue-300 hover:bg-[#202A40]/80 rounded-xl"
             >
               Reconfigurar Modelo
             </Button>
@@ -369,56 +375,56 @@ export default function Settings() {
           {settings.templateConfig ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-500">Arquivo de referência:</span>
-                <span className="font-semibold text-slate-900">
+                <span className="text-[#94A3B8]">Arquivo de referência:</span>
+                <span className="font-semibold text-[#F8FAFC]">
                   {settings.templateConfig.fileName || 'Template padrão'}
                 </span>
-                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]">
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
                   Ativo
                 </Badge>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-1">
-                <div className="bg-slate-50 p-2.5 rounded-lg border">
-                  <span className="text-slate-400 block text-[10px]">Data</span>
-                  <span className="font-semibold text-slate-800">
+                <div className="bg-[#101A34] p-3 rounded-xl border border-white/5">
+                  <span className="text-[#94A3B8] block text-[10px] uppercase">Data</span>
+                  <span className="font-semibold text-[#F8FAFC]">
                     {settings.templateConfig.columnMapping.dateCol}
                   </span>
                 </div>
-                <div className="bg-slate-50 p-2.5 rounded-lg border">
-                  <span className="text-slate-400 block text-[10px]">Descrição</span>
-                  <span className="font-semibold text-slate-800">
+                <div className="bg-[#101A34] p-3 rounded-xl border border-white/5">
+                  <span className="text-[#94A3B8] block text-[10px] uppercase">Descrição</span>
+                  <span className="font-semibold text-[#F8FAFC]">
                     {settings.templateConfig.columnMapping.descriptionCol}
                   </span>
                 </div>
-                <div className="bg-slate-50 p-2.5 rounded-lg border">
-                  <span className="text-slate-400 block text-[10px]">Valor</span>
-                  <span className="font-semibold text-slate-800">
+                <div className="bg-[#101A34] p-3 rounded-xl border border-white/5">
+                  <span className="text-[#94A3B8] block text-[10px] uppercase">Valor</span>
+                  <span className="font-semibold text-[#F8FAFC]">
                     {settings.templateConfig.columnMapping.amountCol}
                   </span>
                 </div>
-                <div className="bg-slate-50 p-2.5 rounded-lg border">
-                  <span className="text-slate-400 block text-[10px]">Categoria</span>
-                  <span className="font-semibold text-slate-800">
+                <div className="bg-[#101A34] p-3 rounded-xl border border-white/5">
+                  <span className="text-[#94A3B8] block text-[10px] uppercase">Categoria</span>
+                  <span className="font-semibold text-[#F8FAFC]">
                     {settings.templateConfig.columnMapping.categoryCol || '—'}
                   </span>
                 </div>
-                <div className="bg-slate-50 p-2.5 rounded-lg border">
-                  <span className="text-slate-400 block text-[10px]">Tipo (D/C)</span>
-                  <span className="font-semibold text-slate-800">
+                <div className="bg-[#101A34] p-3 rounded-xl border border-white/5">
+                  <span className="text-[#94A3B8] block text-[10px] uppercase">Tipo (D/C)</span>
+                  <span className="font-semibold text-[#F8FAFC]">
                     {settings.templateConfig.columnMapping.typeCol || '—'}
                   </span>
                 </div>
-                <div className="bg-slate-50 p-2.5 rounded-lg border">
-                  <span className="text-slate-400 block text-[10px]">Observação</span>
-                  <span className="font-semibold text-slate-800">
+                <div className="bg-[#101A34] p-3 rounded-xl border border-white/5">
+                  <span className="text-[#94A3B8] block text-[10px] uppercase">Observação</span>
+                  <span className="font-semibold text-[#F8FAFC]">
                     {settings.templateConfig.columnMapping.notesCol || '—'}
                   </span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-[#B6C2D4]">
               Nenhuma planilha modelo customizada foi enviada ainda. O sistema usa as colunas padrão
               brasileiras (Data, Descrição, Valor, Categoria, Tipo, Observação).
             </div>
@@ -428,7 +434,7 @@ export default function Settings() {
           <div className="pt-2">
             <Button
               onClick={handleExportTemplateCSV}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 shadow-xs"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5 shadow-sm rounded-xl h-10 px-4 font-medium"
             >
               <Download className="w-4 h-4" />
               Exportar todas as transações para CSV ({transactions.length} itens)
@@ -438,17 +444,17 @@ export default function Settings() {
       </Card>
 
       {/* XLSX Export Section */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 border-b border-white/5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold text-slate-900">
+              <CardTitle className="text-base font-bold text-[#F8FAFC]">
                 Exportar para XLSX (com fórmulas)
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs text-[#B6C2D4]">
                 Gera uma planilha com fórmulas por célula (=5.54+6.39) preservando o template
                 original.
               </CardDescription>
@@ -457,8 +463,8 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="p-5 space-y-4 text-xs">
           <div className="space-y-2">
-            <Label className="text-xs font-semibold">Template XLSX (opcional)</Label>
-            <p className="text-[11px] text-slate-500">
+            <Label className="text-xs font-semibold text-[#F8FAFC]">Template XLSX (opcional)</Label>
+            <p className="text-[11px] text-[#94A3B8]">
               Envie sua planilha de referência (abas anuais 2023/2024/2025/2026). Sem template, o
               sistema gera uma planilha nova a partir dos itens cadastrados.
             </p>
@@ -466,19 +472,21 @@ export default function Settings() {
               type="file"
               accept=".xlsx"
               onChange={(e) => setXlsxTemplateFile(e.target.files?.[0] ?? null)}
+              className="bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl text-xs h-10"
             />
             {xlsxTemplateFile && (
-              <p className="text-[11px] text-emerald-700">Template: {xlsxTemplateFile.name}</p>
+              <p className="text-[11px] text-emerald-400">Template: {xlsxTemplateFile.name}</p>
             )}
           </div>
           <div className="space-y-2">
-            <Label className="text-xs font-semibold">Anos para exportar</Label>
+            <Label className="text-xs font-semibold text-[#F8FAFC]">Anos para exportar</Label>
             <Input
               placeholder={`Ex: ${yearsWithTx.length ? yearsWithTx.join(', ') : '2024, 2025'}`}
               value={xlsxYears}
               onChange={(e) => setXlsxYears(e.target.value)}
+              className="bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl text-xs h-10"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-[#94A3B8]">
               Deixe em branco para exportar todos os anos com transações (
               {yearsWithTx.join(', ') || 'nenhum'}).
             </p>
@@ -486,7 +494,7 @@ export default function Settings() {
           <Button
             onClick={handleExportXlsx}
             disabled={exporting}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 rounded-xl h-10 px-4 font-medium"
           >
             <FileDown className="w-4 h-4" />
             {exporting ? 'Gerando…' : 'Baixar XLSX'}
@@ -495,17 +503,17 @@ export default function Settings() {
       </Card>
 
       {/* PDF Report Section */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 border-b border-white/5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-rose-100 text-rose-700">
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
               <FileDown className="w-5 h-5" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold text-slate-900">
+              <CardTitle className="text-base font-bold text-[#F8FAFC]">
                 Relatório Mensal (PDF)
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs text-[#B6C2D4]">
                 Receita, despesas por classe e saldo do mês selecionado ({currentMonth}).
               </CardDescription>
             </div>
@@ -514,7 +522,7 @@ export default function Settings() {
         <CardContent className="p-5">
           <Button
             onClick={handleExportPdf}
-            className="bg-rose-600 hover:bg-rose-700 text-white text-xs gap-1.5"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5 rounded-xl h-10 px-4 font-medium"
           >
             <FileDown className="w-4 h-4" /> Gerar PDF de {currentMonth}
           </Button>
@@ -522,17 +530,17 @@ export default function Settings() {
       </Card>
 
       {/* Encrypted Backup Section */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 border-b border-white/5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700">
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold text-slate-900">
+              <CardTitle className="text-base font-bold text-[#F8FAFC]">
                 Backup Criptografado (AES-GCM)
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs text-[#B6C2D4]">
                 Backup protegido por senha (WebCrypto). Sem a senha, ninguém pode ler os dados.
               </CardDescription>
             </div>
@@ -540,31 +548,44 @@ export default function Settings() {
         </CardHeader>
         <CardContent className="p-5 space-y-4 text-xs">
           <div className="space-y-2">
-            <Label className="text-xs font-semibold">Senha para gerar backup</Label>
+            <Label className="text-xs font-semibold text-[#F8FAFC]">Senha para gerar backup</Label>
             <Input
               type="password"
               value={encryptPassword}
               onChange={(e) => setEncryptPassword(e.target.value)}
               placeholder="Defina uma senha"
+              className="bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl text-xs h-10"
             />
-            <Button onClick={handleExportEncrypted} variant="outline" className="text-xs gap-1.5">
+            <Button
+              onClick={handleExportEncrypted}
+              variant="outline"
+              className="text-xs gap-1.5 border-white/10 bg-[#202A40] text-[#F8FAFC] hover:bg-[#202A40]/80 rounded-xl h-10"
+            >
               <Lock className="w-4 h-4" /> Gerar backup criptografado
             </Button>
           </div>
-          <div className="space-y-2 pt-3 border-t">
-            <Label className="text-xs font-semibold">Restaurar backup criptografado</Label>
+          <div className="space-y-2 pt-3 border-t border-white/5">
+            <Label className="text-xs font-semibold text-[#F8FAFC]">
+              Restaurar backup criptografado
+            </Label>
             <Input
               type="file"
               accept=".json"
               onChange={(e) => setRestoreEncryptedFile(e.target.files?.[0] ?? null)}
+              className="bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl text-xs h-10"
             />
             <Input
               type="password"
               value={restoreEncryptedPwd}
               onChange={(e) => setRestoreEncryptedPwd(e.target.value)}
               placeholder="Senha usada na geração"
+              className="bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl text-xs h-10"
             />
-            <Button onClick={handleRestoreEncrypted} variant="outline" className="text-xs gap-1.5">
+            <Button
+              onClick={handleRestoreEncrypted}
+              variant="outline"
+              className="text-xs gap-1.5 border-white/10 bg-[#202A40] text-[#F8FAFC] hover:bg-[#202A40]/80 rounded-xl h-10"
+            >
               <Upload className="w-4 h-4" /> Restaurar criptografado
             </Button>
           </div>
@@ -572,17 +593,17 @@ export default function Settings() {
       </Card>
 
       {/* Backup & Restore Section */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 border-b border-white/5">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
               <Database className="w-5 h-5" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold text-slate-900">
+              <CardTitle className="text-base font-bold text-[#F8FAFC]">
                 Backup Completo do Sistema (JSON)
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs text-[#B6C2D4]">
                 Salve ou restaure todas as categorias, transações, tetos de gastos e regras
                 aprendidas
               </CardDescription>
@@ -591,10 +612,10 @@ export default function Settings() {
         </CardHeader>
 
         <CardContent className="p-5 space-y-4 text-xs">
-          <div className="bg-slate-50 p-3.5 rounded-xl border flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="text-slate-600 leading-relaxed">
-              <p className="font-semibold text-slate-900">
+          <div className="bg-[#101A34] p-3.5 rounded-xl border border-white/5 flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="text-[#B6C2D4] leading-relaxed">
+              <p className="font-semibold text-[#F8FAFC]">
                 Armazenamento 100% no navegador (localStorage)
               </p>
               <p className="mt-0.5">
@@ -608,18 +629,18 @@ export default function Settings() {
             <Button
               onClick={handleExportBackup}
               variant="outline"
-              className="text-xs gap-1.5 border-slate-300 hover:bg-slate-50"
+              className="text-xs gap-1.5 border-white/10 bg-[#202A40] text-[#F8FAFC] hover:bg-[#202A40]/80 rounded-xl h-10"
             >
-              <Download className="w-4 h-4 text-slate-600" />
+              <Download className="w-4 h-4 text-[#B6C2D4]" />
               Baixar Arquivo de Backup (JSON)
             </Button>
 
             <div className="relative">
               <Button
                 variant="outline"
-                className="text-xs gap-1.5 border-slate-300 hover:bg-slate-50"
+                className="text-xs gap-1.5 border-white/10 bg-[#202A40] text-[#F8FAFC] hover:bg-[#202A40]/80 rounded-xl h-10"
               >
-                <Upload className="w-4 h-4 text-slate-600" />
+                <Upload className="w-4 h-4 text-[#B6C2D4]" />
                 Restaurar de um Backup (JSON)
               </Button>
               <input
@@ -634,18 +655,18 @@ export default function Settings() {
       </Card>
 
       {/* Demo Data & Danger Zone */}
-      <Card className="border-slate-200/80 shadow-xs">
-        <CardHeader className="pb-3 border-b">
-          <CardTitle className="text-base font-bold text-slate-900">
-            Ações Rápidas & Manutenção
+      <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
+        <CardHeader className="pb-3 border-b border-white/5">
+          <CardTitle className="text-base font-bold text-[#F8FAFC]">
+            Ações Rápidas &amp; Manutenção
           </CardTitle>
         </CardHeader>
 
         <CardContent className="p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-slate-50 rounded-lg border">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-[#101A34] rounded-xl border border-white/5">
             <div>
-              <h4 className="text-xs font-semibold text-slate-900">Carregar dados de exemplo</h4>
-              <p className="text-[11px] text-slate-500">
+              <h4 className="text-xs font-semibold text-[#F8FAFC]">Carregar dados de exemplo</h4>
+              <p className="text-[11px] text-[#B6C2D4]">
                 Preenche o sistema com 10 transações de teste, categorias e regras de aprendizado.
               </p>
             </div>
@@ -659,17 +680,17 @@ export default function Settings() {
                   description: 'Você pode conferir o Dashboard e as Transações.',
                 })
               }}
-              className="text-xs shrink-0"
+              className="text-xs shrink-0 rounded-xl h-9 bg-[#202A40] text-[#F8FAFC] hover:bg-[#202A40]/80 border border-white/5"
             >
-              <Sparkles className="w-3.5 h-3.5 mr-1 text-blue-600" />
+              <Sparkles className="w-3.5 h-3.5 mr-1 text-blue-400" />
               Carregar Demo
             </Button>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-rose-50/50 rounded-lg border border-rose-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-red-950/20 rounded-xl border border-red-500/30">
             <div>
-              <h4 className="text-xs font-semibold text-rose-950">Zerar todos os dados</h4>
-              <p className="text-[11px] text-rose-700">
+              <h4 className="text-xs font-semibold text-rose-300">Zerar todos os dados</h4>
+              <p className="text-[11px] text-rose-200/70">
                 Apaga permanentemente todas as transações, categorias customizadas e regras
                 aprendidas neste navegador.
               </p>
@@ -678,7 +699,7 @@ export default function Settings() {
               variant="destructive"
               size="sm"
               onClick={() => setConfirmResetOpen(true)}
-              className="text-xs shrink-0 bg-rose-600 hover:bg-rose-700"
+              className="text-xs shrink-0 bg-red-600 hover:bg-red-700 text-white rounded-xl h-9 px-4 font-semibold"
             >
               <Trash2 className="w-3.5 h-3.5 mr-1" />
               Zerar Aplicativo
@@ -689,28 +710,38 @@ export default function Settings() {
 
       {/* RESET CONFIRMATION MODAL */}
       <Dialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[420px] bg-[#192134] text-[#F8FAFC] border border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-rose-700 flex items-center gap-2">
-              <Trash2 className="w-5 h-5" />
+            <DialogTitle className="text-base font-bold text-rose-400 flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-rose-400" />
               Tem certeza que deseja apagar tudo?
             </DialogTitle>
           </DialogHeader>
-          <div className="py-2 text-xs text-slate-600 space-y-2">
+          <div className="py-2 text-xs text-[#B6C2D4] space-y-2">
             <p>
               Esta ação removerá todas as suas transações, orçamentos e histórico de aprendizado do
               armazenamento local do seu navegador.
             </p>
-            <p className="font-semibold text-slate-800">
+            <p className="font-semibold text-[#F8FAFC]">
               Certifique-se de que fez o download do seu backup JSON caso queira restaurar estes
               dados no futuro.
             </p>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" size="sm" onClick={() => setConfirmResetOpen(false)}>
+          <DialogFooter className="gap-2 sm:gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmResetOpen(false)}
+              className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
+            >
               Cancelar
             </Button>
-            <Button variant="destructive" size="sm" onClick={handleExecuteReset}>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleExecuteReset}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-xl h-10 px-4 text-xs font-semibold"
+            >
               Sim, apagar tudo
             </Button>
           </DialogFooter>

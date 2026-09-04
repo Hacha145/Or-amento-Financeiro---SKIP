@@ -109,21 +109,21 @@ export default function Categories() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in text-[#F8FAFC]">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Categorias & Classificação
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F8FAFC]">
+            Categorias &amp; Classificação
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs sm:text-sm text-[#B6C2D4] mt-1">
             Gerencie os grupos de despesas/receitas e visualize as regras exatas aprendidas
           </p>
         </div>
 
         <Button
           onClick={handleOpenAdd}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 shadow-xs"
+          className="bg-[#047857] hover:bg-[#059669] text-white text-xs gap-1.5 shadow-sm rounded-xl h-10 px-4 font-medium"
         >
           <Plus className="w-4 h-4" />
           Nova Categoria
@@ -132,41 +132,45 @@ export default function Categories() {
 
       {/* Stats summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-slate-200/80 shadow-xs">
+        <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xs font-medium text-slate-500 uppercase">
+            <CardTitle className="text-xs font-medium text-[#94A3B8] uppercase">
               Total de Categorias
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-1">
-            <div className="text-2xl font-bold text-slate-900">{categories.length}</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Disponíveis para classificação</p>
+            <div className="text-2xl font-bold text-[#F8FAFC] tabular-nums">
+              {categories.length}
+            </div>
+            <p className="text-[11px] text-[#B6C2D4] mt-0.5">Disponíveis para classificação</p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/80 shadow-xs">
+        <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xs font-medium text-slate-500 uppercase">
+            <CardTitle className="text-xs font-medium text-[#94A3B8] uppercase">
               Regras Exatas Memorizadas
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-1">
-            <div className="text-2xl font-bold text-emerald-700">{learnedRules.length}</div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Descrições exatas no motor</p>
+            <div className="text-2xl font-bold text-emerald-400 tabular-nums">
+              {learnedRules.length}
+            </div>
+            <p className="text-[11px] text-[#B6C2D4] mt-0.5">Descrições exatas no motor</p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/80 shadow-xs">
+        <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xs font-medium text-slate-500 uppercase">
+            <CardTitle className="text-xs font-medium text-[#94A3B8] uppercase">
               Lançamentos Vinculados
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-1">
-            <div className="text-2xl font-bold text-slate-900">
+            <div className="text-2xl font-bold text-[#F8FAFC] tabular-nums">
               {transactions.filter((t) => t.categoryId).length}
             </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Transações categorizadas no app</p>
+            <p className="text-[11px] text-[#B6C2D4] mt-0.5">Transações categorizadas no app</p>
           </CardContent>
         </Card>
       </div>
@@ -180,41 +184,44 @@ export default function Categories() {
           return (
             <Card
               key={cat.id}
-              className="border-slate-200/80 shadow-xs flex flex-col justify-between hover:shadow-sm transition-shadow"
+              className="border-white/10 bg-[#192134] rounded-2xl shadow-sm flex flex-col justify-between hover:border-white/20 transition-all"
             >
-              <CardHeader className="p-4 pb-2">
+              <CardHeader className="p-4 pb-2 border-b border-white/5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <span
                       className="w-4 h-4 rounded-full shrink-0 shadow-xs"
                       style={{ backgroundColor: cat.color }}
                     />
-                    <CardTitle className="text-base font-bold text-slate-900">{cat.name}</CardTitle>
+                    <CardTitle className="text-base font-bold text-[#F8FAFC]">{cat.name}</CardTitle>
                   </div>
                   {cat.isDefault && (
-                    <Badge variant="outline" className="text-[10px] text-slate-500">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-blue-300 bg-blue-500/10 border-blue-500/30"
+                    >
                       Padrão
                     </Badge>
                   )}
                 </div>
               </CardHeader>
 
-              <CardContent className="p-4 pt-2 text-xs text-slate-600 space-y-1.5">
+              <CardContent className="p-4 pt-3 text-xs text-[#B6C2D4] space-y-2">
                 <div className="flex justify-between">
                   <span>Lançamentos associados:</span>
-                  <span className="font-semibold text-slate-900">{usageCount}</span>
+                  <span className="font-semibold text-[#F8FAFC] tabular-nums">{usageCount}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Regras exatas vinculadas:</span>
-                  <span className="font-semibold text-emerald-700">{ruleCount}</span>
+                  <span className="font-semibold text-emerald-400 tabular-nums">{ruleCount}</span>
                 </div>
               </CardContent>
 
-              <CardFooter className="p-3 bg-slate-50/70 border-t flex justify-end gap-1">
+              <CardFooter className="p-3 bg-[#101A34]/50 border-t border-white/5 flex justify-end gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs text-slate-600 hover:text-slate-900"
+                  className="h-8 text-xs text-[#B6C2D4] hover:text-[#F8FAFC] hover:bg-[#202A40] rounded-lg"
                   onClick={() => handleOpenEdit(cat)}
                 >
                   <Edit2 className="w-3.5 h-3.5 mr-1" />
@@ -223,7 +230,7 @@ export default function Categories() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-xs text-rose-600 hover:bg-rose-50"
+                  className="h-8 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg"
                   onClick={() => handleDelete(cat)}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -236,13 +243,13 @@ export default function Categories() {
 
       {/* Learned Rules Preview section */}
       {learnedRules.length > 0 && (
-        <Card className="border-slate-200/80 shadow-xs mt-8">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
-              <BookOpen className="w-4 h-4 text-emerald-600" />
+        <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm mt-8">
+          <CardHeader className="pb-3 border-b border-white/5">
+            <CardTitle className="text-base font-bold flex items-center gap-2 text-[#F8FAFC]">
+              <BookOpen className="w-4 h-4 text-blue-400" />
               Histórico de Regras Exatas Aprendidas ({learnedRules.length})
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-xs text-[#B6C2D4]">
               O motor utiliza normalização inteligente (sem distinção de maiúsculas/minúsculas,
               acentos ou pontuações) para classificar lançamentos automaticamente sem falsos
               positivos.
@@ -250,7 +257,7 @@ export default function Categories() {
           </CardHeader>
 
           <CardContent className="p-0 max-h-80 overflow-y-auto">
-            <div className="divide-y divide-slate-100 text-xs">
+            <div className="divide-y divide-white/5 text-xs">
               {learnedRules.map((rule, idx) => {
                 const cat = categories.find((c) => c.id === rule.categoryId)
                 const normKey =
@@ -258,23 +265,24 @@ export default function Categories() {
                 return (
                   <div
                     key={idx}
-                    className="p-3 flex items-center justify-between hover:bg-slate-50/70 gap-4"
+                    className="p-3.5 flex items-center justify-between hover:bg-[#202A40]/60 gap-4"
                   >
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="font-medium text-slate-900 truncate">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="font-medium text-[#F8FAFC] truncate">
                         {rule.exactDescription}
                       </span>
-                      <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded w-fit">
+                      <span className="font-mono text-[10px] text-[#94A3B8] bg-[#101A34] border border-white/5 px-2 py-0.5 rounded w-fit">
                         chave: "{normKey}"
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       {cat && (
                         <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border"
                           style={{
-                            backgroundColor: `${cat.color}15`,
+                            backgroundColor: `${cat.color}22`,
+                            borderColor: `${cat.color}44`,
                             color: cat.color,
                           }}
                         >
@@ -285,7 +293,10 @@ export default function Categories() {
                           {cat.name}
                         </span>
                       )}
-                      <Badge variant="outline" className="text-[10px] text-slate-500">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] text-[#94A3B8] border-white/10 bg-[#101A34]"
+                      >
                         {rule.confirmCount}x confirmada
                       </Badge>
                     </div>
@@ -299,28 +310,28 @@ export default function Categories() {
 
       {/* MODAL: ADD / EDIT CATEGORY */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[420px] bg-[#192134] text-[#F8FAFC] border border-white/10 rounded-2xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <Tag className="w-5 h-5 text-emerald-600" />
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-[#F8FAFC]">
+              <Tag className="w-5 h-5 text-blue-400" />
               {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Nome da Categoria</Label>
+              <Label className="text-xs text-[#B6C2D4]">Nome da Categoria</Label>
               <Input
                 placeholder="Ex: Assinaturas, Pets, Farmácia..."
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="text-xs"
+                className="text-xs h-10 bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Cor da Categoria</Label>
+              <Label className="text-xs text-[#B6C2D4]">Cor da Categoria</Label>
               <div className="grid grid-cols-7 gap-2 pt-1">
                 {PALETTE_COLORS.map((col) => (
                   <button
@@ -329,8 +340,8 @@ export default function Categories() {
                     onClick={() => setSelectedColor(col)}
                     className={`w-8 h-8 rounded-full transition-transform flex items-center justify-center ${
                       selectedColor === col
-                        ? 'scale-110 ring-2 ring-slate-900 ring-offset-2'
-                        : 'hover:scale-105'
+                        ? 'scale-110 ring-2 ring-blue-400 ring-offset-2 ring-offset-[#192134]'
+                        : 'hover:scale-105 opacity-80 hover:opacity-100'
                     }`}
                     style={{ backgroundColor: col }}
                   >
@@ -340,19 +351,20 @@ export default function Categories() {
               </div>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+            <DialogFooter className="gap-2 sm:gap-2 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setDialogOpen(false)}
+                className="border-white/10 bg-transparent text-[#B6C2D4] hover:bg-[#202A40] hover:text-[#F8FAFC] rounded-xl h-10 text-xs"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-4 text-xs font-semibold"
               >
                 Salvar Categoria
               </Button>
