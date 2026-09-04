@@ -237,7 +237,14 @@ export interface AppTemplateConfig {
   configuredAt: string
 }
 
-export interface AppSettings {
+export interface UserIdentityConfig {
+  /** Nome completo do usuário para identificar transferências/entradas na conta */
+  userName?: string
+  /** Nomes ou apelidos alternativos como aparecem no extrato bancário */
+  userAliases?: string[]
+}
+
+export interface AppSettings extends UserIdentityConfig {
   currency: string
   locale: string
   setupCompleted: boolean

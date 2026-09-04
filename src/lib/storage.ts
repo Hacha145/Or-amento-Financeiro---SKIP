@@ -62,6 +62,8 @@ export function loadSettings(): AppSettings {
     locale: 'pt-BR',
     setupCompleted: false,
     includeCreditCardPaymentsInTotals: false,
+    userName: '',
+    userAliases: [],
   }
 }
 

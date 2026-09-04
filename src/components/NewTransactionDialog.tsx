@@ -31,8 +31,10 @@ import {
   SlidersHorizontal,
   PlusCircle,
   Copy,
+  UserCheck,
 } from 'lucide-react'
 import type { TransactionType } from '@/types/finance'
+import { identifyIncome } from '@/lib/incomeIdentity'
 
 interface NewTransactionDialogProps {
   open: boolean
@@ -128,6 +130,7 @@ export const NewTransactionDialog: React.FC<NewTransactionDialogProps> = ({
     creditCards,
     transactions,
     addTransaction,
+    settings,
   } = useFinance()
 
   const [type, setType] = useState<TransactionType>(initialType)
@@ -331,6 +334,38 @@ export const NewTransactionDialog: React.FC<NewTransactionDialogProps> = ({
               onChange={(e) => setDescription(e.target.value)}
               required
             />
+            {(() => {
+              const cleanAmt = amountStr.replace(/[R$\s]/g, '').replace(',', '.')
+              const parsedVal = parseFloat(cleanAmt)
+              const incomeResult = identifyIncome(
+                {
+                  description,
+                  amount: !isNaN(parsedVal) && parsedVal > 0 ? parsedVal : 1,
+                  type,
+                },
+                {
+                  userName: settings.userName,
+                  userAliases: settings.userAliases,
+                },
+              )
+
+              if (
+                type === 'income' &&
+                incomeResult.isIdentifiedIncome &&
+                incomeResult.isUserLinked
+              ) {
+                return (
+                  <div className="flex items-center gap-1.5 pt-1 text-[11px] text-emerald-400 font-medium animate-in fade-in duration-200">
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>
+                      Entrada vinculada a você
+                      {incomeResult.matchedIdentifier ? ` (${incomeResult.matchedIdentifier})` : ''}
+                    </span>
+                  </div>
+                )
+              }
+              return null
+            })()}
           </div>
 
           {/* Cascading Class → Category → Item */}

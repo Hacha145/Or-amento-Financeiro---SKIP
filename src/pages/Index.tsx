@@ -28,6 +28,7 @@ import { YearSelector } from '@/components/YearSelector'
 import { useFinance } from '@/context/FinanceContext'
 import { formatCurrencyBRL } from '@/lib/parsers'
 import { variationPercent } from '@/lib/consolidation'
+import { identifyIncome } from '@/lib/incomeIdentity'
 import {
   PieChart,
   Pie,
@@ -132,6 +133,17 @@ export default function Index() {
     last6MonthsHistory,
     budgetProgress: monthlyBudgetProgress,
   } = monthlyStats
+
+  // Identified income count in current month
+  const identifiedIncomesMonthCount = useMemo(() => {
+    return monthTransactions.filter((tx) => {
+      const res = identifyIncome(
+        { description: tx.description, amount: tx.amount, type: tx.type },
+        { userName: settings.userName, userAliases: settings.userAliases },
+      )
+      return res.isIdentifiedIncome
+    }).length
+  }, [monthTransactions, settings.userName, settings.userAliases])
 
   // --- Annual View Data ---
   const selectedYearStr = String(selectedYear)
@@ -624,7 +636,15 @@ export default function Index() {
                 <div className="text-2xl sm:text-3xl font-bold tracking-tight text-[#34D399] tabular-nums">
                   {formatCurrencyBRL(monthlyIncome)}
                 </div>
-                <p className="text-[11px] text-[#B6C2D4] mt-1">Entradas confirmadas no período</p>
+                <p className="text-[11px] text-[#B6C2D4] mt-1 flex items-center justify-between">
+                  <span>Entradas confirmadas</span>
+                  {identifiedIncomesMonthCount > 0 && (
+                    <span className="text-emerald-400 font-medium text-[10px]">
+                      {identifiedIncomesMonthCount}{' '}
+                      {identifiedIncomesMonthCount === 1 ? 'identificada' : 'identificadas'}
+                    </span>
+                  )}
+                </p>
               </CardContent>
             </Card>
 

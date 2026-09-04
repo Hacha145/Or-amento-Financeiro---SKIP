@@ -14,7 +14,10 @@ import {
   Download,
   HelpCircle,
   CreditCard,
+  UserCheck,
+  TrendingUp,
 } from 'lucide-react'
+import { identifyIncome } from '@/lib/incomeIdentity'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,6 +59,7 @@ export default function Transactions() {
     classifyAndConfirmTransaction,
     batchConfirmTransactions,
     addTransaction,
+    settings,
   } = useFinance()
 
   // URL status query param (e.g. ?status=pendente)
@@ -481,6 +485,42 @@ export default function Transactions() {
                           <div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-[#F8FAFC]">{tx.description}</span>
+                              {(() => {
+                                const incomeIdResult = identifyIncome(
+                                  {
+                                    description: tx.description,
+                                    amount: tx.amount,
+                                    type: tx.type,
+                                  },
+                                  {
+                                    userName: settings.userName,
+                                    userAliases: settings.userAliases,
+                                  },
+                                )
+
+                                if (incomeIdResult.isIdentifiedIncome) {
+                                  return (
+                                    <Badge
+                                      className={`text-[10px] gap-1 py-0 px-1.5 font-medium border ${
+                                        incomeIdResult.isUserLinked
+                                          ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                                          : 'border-teal-500/30 bg-teal-500/10 text-teal-300'
+                                      }`}
+                                      title={incomeIdResult.reason || 'Entrada identificada'}
+                                    >
+                                      {incomeIdResult.isUserLinked ? (
+                                        <UserCheck className="w-2.5 h-2.5 text-emerald-400" />
+                                      ) : (
+                                        <TrendingUp className="w-2.5 h-2.5 text-teal-400" />
+                                      )}
+                                      {incomeIdResult.isUserLinked
+                                        ? 'Entrada vinculada a você'
+                                        : 'Entrada identificada'}
+                                    </Badge>
+                                  )
+                                }
+                                return null
+                              })()}
                               {tx.isCreditCardPayment && (
                                 <Badge
                                   className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] gap-1 font-medium py-0 px-1.5"

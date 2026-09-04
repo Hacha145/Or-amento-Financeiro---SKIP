@@ -15,6 +15,10 @@ import {
   CreditCard,
   Lock,
   FileDown,
+  UserCheck,
+  Plus,
+  X,
+  Info,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -70,6 +74,49 @@ export default function Settings() {
   const [restoreEncryptedFile, setRestoreEncryptedFile] = useState<File | null>(null)
   const [restoreEncryptedPwd, setRestoreEncryptedPwd] = useState('')
   const [exporting, setExporting] = useState(false)
+
+  // User identity state for income matching
+  const [userNameInput, setUserNameInput] = useState<string>(() => settings.userName || '')
+  const [userAliasesList, setUserAliasesList] = useState<string[]>(() =>
+    Array.isArray(settings.userAliases) ? settings.userAliases : [],
+  )
+  const [newAliasInput, setNewAliasInput] = useState<string>('')
+
+  // Sync state if settings change outside
+  React.useEffect(() => {
+    setUserNameInput(settings.userName || '')
+    setUserAliasesList(Array.isArray(settings.userAliases) ? settings.userAliases : [])
+  }, [settings.userName, settings.userAliases])
+
+  const handleSaveIdentity = (name: string, aliases: string[]) => {
+    updateSettings({
+      userName: name.trim(),
+      userAliases: aliases.map((a) => a.trim()).filter((a) => a.length > 0),
+    })
+    toast({
+      title: 'Identidade atualizada!',
+      description: 'O reconhecimento de entradas usará este nome e apelidos automaticamente.',
+    })
+  }
+
+  const handleAddAlias = () => {
+    const trimmed = newAliasInput.trim()
+    if (!trimmed) return
+    if (userAliasesList.some((a) => a.toLowerCase() === trimmed.toLowerCase())) {
+      toast({ title: 'Apelido já cadastrado', variant: 'destructive' })
+      return
+    }
+    const updated = [...userAliasesList, trimmed]
+    setUserAliasesList(updated)
+    setNewAliasInput('')
+    handleSaveIdentity(userNameInput, updated)
+  }
+
+  const handleRemoveAlias = (index: number) => {
+    const updated = userAliasesList.filter((_, i) => i !== index)
+    setUserAliasesList(updated)
+    handleSaveIdentity(userNameInput, updated)
+  }
 
   const yearsWithTx = useMemo(() => {
     const set = new Set<number>()
@@ -281,6 +328,131 @@ export default function Settings() {
           Gerencie o formato da sua planilha modelo, regras de contabilidade e cópias de segurança
         </p>
       </div>
+
+      {/* User Identity for Income Identification */}
+      <Card
+        id="identificacao-entradas"
+        className="border-white/10 bg-[#192134] rounded-2xl shadow-sm"
+      >
+        <CardHeader className="pb-3 border-b border-white/5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-[#F8FAFC]">
+                Identificação de Entradas
+              </CardTitle>
+              <CardDescription className="text-xs text-[#B6C2D4]">
+                Vincule seu nome e apelidos para que o sistema reconheça receitas recebidas na conta
+                com alta precisão
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-5 space-y-4">
+          {!settings.userName?.trim() && (
+            <div className="flex items-start gap-2.5 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-200">
+              <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-blue-100">Dica de precisão:</p>
+                <p className="text-[11px] text-blue-200/90 mt-0.5">
+                  Preencher seu nome melhora a identificação automática de entradas (PIX recebido,
+                  TED, transferências e reembolsos com seu nome no extrato).
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="user-fullname" className="text-xs font-semibold text-[#F8FAFC]">
+              Seu nome completo
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="user-fullname"
+                placeholder="Ex: Carlos Eduardo da Silva"
+                value={userNameInput}
+                onChange={(e) => setUserNameInput(e.target.value)}
+                onBlur={() => handleSaveIdentity(userNameInput, userAliasesList)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleSaveIdentity(userNameInput, userAliasesList)
+                  }
+                }}
+                className="bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl text-xs h-10 placeholder:text-[#94A3B8]"
+              />
+              <Button
+                type="button"
+                onClick={() => handleSaveIdentity(userNameInput, userAliasesList)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-10 px-4 font-semibold shrink-0"
+              >
+                Salvar Nome
+              </Button>
+            </div>
+            <p className="text-[11px] text-[#94A3B8]">
+              Como seu nome costuma constar nos créditos e transferências recebidas.
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-white/5">
+            <Label className="text-xs font-semibold text-[#F8FAFC]">
+              Nomes/apelidos que aparecem na conta
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Ex: Carlos Silva, Cadu, C. Silva"
+                value={newAliasInput}
+                onChange={(e) => setNewAliasInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddAlias()
+                  }
+                }}
+                className="bg-[#101A34] text-[#F8FAFC] border-white/10 rounded-xl text-xs h-10 placeholder:text-[#94A3B8]"
+              />
+              <Button
+                type="button"
+                onClick={handleAddAlias}
+                variant="outline"
+                className="border-white/10 bg-[#202A40] text-[#F8FAFC] hover:bg-[#202A40]/80 rounded-xl text-xs h-10 px-4 shrink-0 font-medium"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Adicionar
+              </Button>
+            </div>
+
+            {userAliasesList.length > 0 ? (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {userAliasesList.map((alias, idx) => (
+                  <Badge
+                    key={idx}
+                    className="bg-[#101A34] text-[#F8FAFC] border border-white/10 text-xs px-2.5 py-1 rounded-xl flex items-center gap-1.5"
+                  >
+                    <span>{alias}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAlias(idx)}
+                      className="text-[#94A3B8] hover:text-rose-400 p-0.5 rounded cursor-pointer transition-colors"
+                      aria-label={`Remover apelido ${alias}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#94A3B8]">
+                Nenhum apelido cadastrado. Adicione abreviações ou outros formatos como os bancos
+                registram seu nome.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Duplication & Credit Card Settings */}
       <Card className="border-white/10 bg-[#192134] rounded-2xl shadow-sm">

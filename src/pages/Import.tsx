@@ -53,7 +53,8 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { importTemplateXLSX, TemplateImportResult } from '@/lib/templateImporter'
 import { TemplateImportReport } from '@/components/TemplateImportReport'
-import { Layers, AlertTriangle } from 'lucide-react'
+import { Layers, AlertTriangle, UserCheck, TrendingUp } from 'lucide-react'
+import { identifyIncome, IncomeIdentificationResult } from '@/lib/incomeIdentity'
 
 type ImportStage = 'upload' | 'mapping' | 'preview' | 'success' | 'template'
 
@@ -71,6 +72,7 @@ interface PreviewItem {
   isCreditCardPayment: boolean
   source: 'import_ofx' | 'import_csv'
   notes?: string
+  incomeIdentity?: IncomeIdentificationResult
 }
 
 interface PendingMappingFile {
@@ -305,6 +307,18 @@ export default function ImportBank() {
       let confidence: 'exact' | 'suggested' | 'none' = 'none'
       let selectedCatId = 'none'
 
+      const incomeIdResult = identifyIncome(
+        {
+          description: tx.memo,
+          amount: tx.amount,
+          type: tx.type,
+        },
+        {
+          userName: settings.userName,
+          userAliases: settings.userAliases,
+        },
+      )
+
       if (match.matched && match.categoryId) {
         matchedCatId = match.categoryId
         selectedCatId = match.categoryId
@@ -331,6 +345,7 @@ export default function ImportBank() {
         selectedCatId,
         isCreditCardPayment: isCC,
         source: 'import_ofx',
+        incomeIdentity: incomeIdResult,
       }
     })
   }
@@ -365,6 +380,18 @@ export default function ImportBank() {
       let suggestedCatId: string | null = null
       let confidence: 'exact' | 'suggested' | 'none' = 'none'
       let selectedCatId = 'none'
+
+      const incomeIdResult = identifyIncome(
+        {
+          description: cleanDesc,
+          amount,
+          type,
+        },
+        {
+          userName: settings.userName,
+          userAliases: settings.userAliases,
+        },
+      )
 
       // If explicit category
       if (rawCatName && String(rawCatName).trim()) {
@@ -407,6 +434,7 @@ export default function ImportBank() {
         selectedCatId,
         isCreditCardPayment: isCC,
         source: 'import_csv',
+        incomeIdentity: incomeIdResult,
       }
     })
   }
@@ -886,6 +914,25 @@ export default function ImportBank() {
                         <td className="p-3">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-[#F8FAFC]">{item.description}</span>
+                            {item.incomeIdentity?.isIdentifiedIncome && (
+                              <Badge
+                                className={`text-[10px] gap-1 font-semibold border ${
+                                  item.incomeIdentity.isUserLinked
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                    : 'bg-teal-500/15 text-teal-300 border-teal-500/30'
+                                }`}
+                                title={item.incomeIdentity.reason || 'Entrada identificada'}
+                              >
+                                {item.incomeIdentity.isUserLinked ? (
+                                  <UserCheck className="w-3 h-3 text-emerald-400" />
+                                ) : (
+                                  <TrendingUp className="w-3 h-3 text-teal-400" />
+                                )}
+                                {item.incomeIdentity.isUserLinked
+                                  ? 'Entrada vinculada a você'
+                                  : 'Entrada identificada'}
+                              </Badge>
+                            )}
                             {item.isCreditCardPayment && (
                               <Badge
                                 className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] gap-1 font-semibold"
